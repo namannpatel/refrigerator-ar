@@ -61,6 +61,7 @@ export class ARSessionManager {
     this._lastHitMatrix = new THREE.Matrix4();
     this._placementPosition = new THREE.Vector3();
     this._placementQuaternion = new THREE.Quaternion();
+    this._placementScale = new THREE.Vector3();
     this._touchStart = null;
     this._startRotationY = 0;
     this._canvasPointerDown = false;
@@ -483,8 +484,7 @@ export class ARSessionManager {
     this.renderer.setClearAlpha(0);
 
     this.sceneManager.productRoot.add(this.refrigerator.root);
-    this.refrigerator.root.position.set(0, 0, 0);
-    this.refrigerator.root.rotation.set(0, 0, 0);
+    this.refrigerator.restoreGroundedPlacement();
     this.refrigerator.root.visible = true;
     this.refrigerator.root.updateMatrixWorld(true);
 
@@ -528,8 +528,7 @@ export class ARSessionManager {
     if (this.productViewer) {
       this.productViewer.configureForCameraAR();
     }
-    this.refrigerator.root.position.set(0, 0, 0);
-    this.refrigerator.root.rotation.set(0, 0, 0);
+    this.refrigerator.restoreGroundedPlacement();
   }
 
   _endCameraAR() {
@@ -558,8 +557,7 @@ export class ARSessionManager {
     this.renderer.setClearColor(0x000000, 1);
     this.renderer.setClearAlpha(1);
     this.sceneManager.productRoot.add(this.refrigerator.root);
-    this.refrigerator.root.position.set(0, 0, 0);
-    this.refrigerator.root.rotation.set(0, 0, 0);
+    this.refrigerator.restoreGroundedPlacement();
     this.refrigerator.root.visible = true;
 
     this.sceneManager.setStudioVisible(true);
@@ -658,9 +656,8 @@ export class ARSessionManager {
     this.reticle.visible = false;
 
     this.sceneManager.productRoot.add(this.refrigerator.root);
+    this.refrigerator.restoreGroundedPlacement();
     this.refrigerator.root.visible = true;
-    this.refrigerator.root.position.set(0, 0, 0);
-    this.refrigerator.root.rotation.set(0, 0, 0);
 
     this.sceneManager.setStudioVisible(true);
     this.sceneManager.configureForAR(false);
@@ -748,20 +745,30 @@ export class ARSessionManager {
     return true;
   }
 
+  _applyReticlePoseToModel() {
+    const savedScale = this.refrigerator.root.scale.clone();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scratchScale = new THREE.Vector3();
+
+    this.reticle.matrix.decompose(position, quaternion, scratchScale);
+    this.refrigerator.root.position.copy(position);
+    this.refrigerator.root.quaternion.copy(quaternion);
+    this.refrigerator.root.scale.copy(savedScale);
+    this.refrigerator.root.matrixAutoUpdate = true;
+    this.refrigerator.root.updateMatrixWorld(true);
+  }
+
   _placeModel() {
     this.isPlaced = true;
     this.refrigerator.root.visible = true;
-    this.refrigerator.root.matrix.copy(this.reticle.matrix);
-    this.refrigerator.root.matrix.decompose(
-      this.refrigerator.root.position,
-      this.refrigerator.root.quaternion,
-      this.refrigerator.root.scale,
-    );
+    this._applyReticlePoseToModel();
     this._placementPosition.copy(this.refrigerator.root.position);
     this._placementQuaternion.copy(this.refrigerator.root.quaternion);
+    this._placementScale.copy(this.refrigerator.root.scale);
     this._startRotationY = this.refrigerator.root.rotation.y;
     this.reticle.visible = false;
-    this._updateHint('Pinch to zoom. Drag to rotate. Tap a surface to reposition.');
+    this._updateHint('Use door buttons below. Drag on the fridge to rotate. Tap a surface to reposition.');
 
     if (this.modelLoader) {
       this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
@@ -770,14 +777,10 @@ export class ARSessionManager {
 
   _placeAtReticle() {
     if (!this.reticle.visible) return;
-    this.refrigerator.root.matrix.copy(this.reticle.matrix);
-    this.refrigerator.root.matrix.decompose(
-      this.refrigerator.root.position,
-      this.refrigerator.root.quaternion,
-      this.refrigerator.root.scale,
-    );
+    this._applyReticlePoseToModel();
     this._placementPosition.copy(this.refrigerator.root.position);
     this._placementQuaternion.copy(this.refrigerator.root.quaternion);
+    this._placementScale.copy(this.refrigerator.root.scale);
     this._startRotationY = this.refrigerator.root.rotation.y;
   }
 
@@ -793,6 +796,7 @@ export class ARSessionManager {
     }
     this.refrigerator.root.position.copy(this._placementPosition);
     this.refrigerator.root.quaternion.copy(this._placementQuaternion);
+    this.refrigerator.root.scale.copy(this._placementScale);
     this._startRotationY = this.refrigerator.root.rotation.y;
   }
 

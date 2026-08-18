@@ -77,6 +77,7 @@ export class Refrigerator {
 
     this.scaleFactor = INCH_TO_METER;
     this._freezerBaseLocal = new THREE.Vector3();
+    this._groundedPosition = new THREE.Vector3();
     this.dispenserCooldown = 0;
     this._localHit = new THREE.Vector3();
   }
@@ -204,7 +205,10 @@ export class Refrigerator {
   }
 
   _applyScaleAndGround() {
+    this.root.position.set(0, 0, 0);
+    this.root.rotation.set(0, 0, 0);
     this.root.updateMatrixWorld(true);
+
     const rawBox = new THREE.Box3().setFromObject(this.root);
     const rawHeight = rawBox.max.y - rawBox.min.y;
 
@@ -218,15 +222,29 @@ export class Refrigerator {
       this.root.scale.setScalar(targetScale);
     }
 
-    const box = new THREE.Box3().setFromObject(this.root);
-    this.root.position.y = Number.isFinite(box.min.y) ? -box.min.y : 0;
     this.root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(this.root);
+    const centerX = (box.min.x + box.max.x) * 0.5;
+    const centerZ = (box.min.z + box.max.z) * 0.5;
+    this._groundedPosition.set(-centerX, -box.min.y, -centerZ);
+    this.root.position.copy(this._groundedPosition);
 
-    this.worldHeight = box.max.y - box.min.y;
+    this.root.updateMatrixWorld(true);
+    const groundedBox = new THREE.Box3().setFromObject(this.root);
+    this.worldHeight = groundedBox.max.y - groundedBox.min.y;
     this.footprint = {
-      width: box.max.x - box.min.x,
-      depth: box.max.z - box.min.z,
+      width: groundedBox.max.x - groundedBox.min.x,
+      depth: groundedBox.max.z - groundedBox.min.z,
     };
+  }
+
+  /** Restore bottom-center grounded pose used in the 3D viewer after AR. */
+  restoreGroundedPlacement() {
+    this.root.position.copy(this._groundedPosition);
+    this.root.rotation.set(0, 0, 0);
+    this.root.scale.setScalar(this.scaleFactor);
+    this.root.matrixAutoUpdate = true;
+    this.root.updateMatrixWorld(true);
   }
 
   toggleLeftDoor() {
