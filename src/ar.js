@@ -52,6 +52,10 @@ export class ARSessionManager {
     this._placementQuaternion = new THREE.Quaternion();
     this._touchStart = null;
     this._startRotationY = 0;
+    this._canvasPointerDown = false;
+    this._canvasDownX = 0;
+    this._canvasDownY = 0;
+    this._tapDedupeUntil = 0;
     this.arMode = 'none';
 
     this.renderer.xr.addEventListener('sessionstart', () => this._onSessionStart());
@@ -214,7 +218,7 @@ export class ARSessionManager {
     const session = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['hit-test'],
       optionalFeatures: ['local-floor', 'dom-overlay'],
-      domOverlay: { root: document.getElementById('app') },
+      domOverlay: { root: document.getElementById('ar-controls') },
     });
 
     await this.renderer.xr.setSession(session);
@@ -245,9 +249,52 @@ export class ARSessionManager {
     if (this.modelLoader) {
       this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
     }
+
+    this._bindImmersiveTapListeners();
+  }
+
+  _bindImmersiveTapListeners() {
+    this._onWindowPointerDown = (event) => {
+      if (!this.isActive) return;
+      const arControls = document.getElementById('ar-controls');
+      if (arControls?.contains(event.target)) return;
+      this._canvasPointerDown = true;
+      this._canvasDownX = event.clientX;
+      this._canvasDownY = event.clientY;
+    };
+
+    this._onWindowPointerUp = (event) => {
+      if (!this.isActive || !this._canvasPointerDown) return;
+      const arControls = document.getElementById('ar-controls');
+      if (arControls?.contains(event.target)) return;
+
+      this._canvasPointerDown = false;
+      const dx = event.clientX - this._canvasDownX;
+      const dy = event.clientY - this._canvasDownY;
+      if (Math.hypot(dx, dy) > 12) return;
+      if (this.isPlaced && this.mode === 'rotate' && this._touchStart) return;
+
+      this._handleCanvasTap(event.clientX, event.clientY);
+    };
+
+    window.addEventListener('pointerdown', this._onWindowPointerDown, { capture: true });
+    window.addEventListener('pointerup', this._onWindowPointerUp, { capture: true });
+  }
+
+  _unbindImmersiveTapListeners() {
+    if (this._onWindowPointerDown) {
+      window.removeEventListener('pointerdown', this._onWindowPointerDown, { capture: true });
+    }
+    if (this._onWindowPointerUp) {
+      window.removeEventListener('pointerup', this._onWindowPointerUp, { capture: true });
+    }
+    this._onWindowPointerDown = null;
+    this._onWindowPointerUp = null;
+    this._canvasPointerDown = false;
   }
 
   _onSessionEnd() {
+    this._unbindImmersiveTapListeners();
     this.isActive = false;
     this.isPlaced = false;
     this.hitTestSource = null;
@@ -266,8 +313,7 @@ export class ARSessionManager {
 
   _onSelect(event) {
     if (!this.isActive) return;
-
-    if (this._tryInteractFromSelect(event)) return;
+    if (Date.now() < this._tapDedupeUntil) return;
 
     if (!this.isPlaced) {
       if (!this.reticle.visible) return;
@@ -275,7 +321,43 @@ export class ARSessionManager {
       return;
     }
 
+    if (this._tryInteractFromSelect(event)) return;
+
     if (this.mode === 'move') {
+      this._placeAtReticle();
+    }
+  }
+
+  _getInteractionCamera() {
+    if (this.renderer.xr.isPresenting) {
+      return this.renderer.xr.getCamera();
+    }
+    return this.camera;
+  }
+
+  _handleCanvasTap(clientX, clientY) {
+    if (!this.isActive || !this.interactionHandler) return;
+    if (Date.now() < this._tapDedupeUntil) return;
+
+    this._tapDedupeUntil = Date.now() + 400;
+
+    if (!this.isPlaced) {
+      if (this.reticle.visible) this._placeModel();
+      return;
+    }
+
+    const interaction = this.interactionHandler.raycastAtScreen(
+      clientX,
+      clientY,
+      this._getInteractionCamera(),
+    );
+
+    if (interaction) {
+      this.interactionHandler.dispatchInteraction(interaction);
+      return;
+    }
+
+    if (this.mode === 'move' && this.reticle.visible) {
       this._placeAtReticle();
     }
   }
@@ -312,28 +394,8 @@ export class ARSessionManager {
     const interaction = this.refrigerator.identifyInteraction(hits[0]);
     if (!interaction) return false;
 
-    switch (interaction.type) {
-      case 'leftDoor':
-        this.refrigerator.toggleLeftDoor();
-        break;
-      case 'rightDoor':
-        this.refrigerator.toggleRightDoor();
-        break;
-      case 'freezer':
-        this.refrigerator.toggleFreezer();
-        break;
-      case 'display':
-        this.interactionHandler.callbacks.onDisplayTap?.();
-        break;
-      case 'dispenser':
-        const msg = this.refrigerator.triggerDispenser(interaction.mode);
-        if (msg) this.interactionHandler.callbacks.onDispenser?.(msg);
-        break;
-      default:
-        break;
-    }
-
-    this.interactionHandler.callbacks.onDoorChange?.();
+    this._tapDedupeUntil = Date.now() + 400;
+    this.interactionHandler.dispatchInteraction(interaction);
     return true;
   }
 
@@ -350,7 +412,7 @@ export class ARSessionManager {
     this._placementQuaternion.copy(this.refrigerator.root.quaternion);
     this._startRotationY = this.refrigerator.root.rotation.y;
     this.reticle.visible = false;
-    this._updateHint('Drag to move or rotate. Tap surface to reposition.');
+    this._updateHint('Tap doors or freezer to open. Use buttons below to move or rotate.');
 
     if (this.modelLoader) {
       this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
@@ -375,7 +437,7 @@ export class ARSessionManager {
     this._updateHint(
       mode === 'rotate'
         ? 'Drag horizontally to rotate the refrigerator.'
-        : 'Tap a surface to move the refrigerator.',
+        : 'Tap a door, freezer, or surface to interact.',
     );
   }
 

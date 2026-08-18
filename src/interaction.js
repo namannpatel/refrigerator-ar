@@ -49,10 +49,30 @@ export class InteractionHandler {
   _handleTap() {
     const meshes = this.refrigerator.getInteractiveMeshes();
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hits = this.raycaster.intersectObjects(meshes, false);
-    if (hits.length === 0) return;
+    const interaction = this._intersectInteraction(meshes);
+    if (!interaction) return;
+    this.dispatchInteraction(interaction);
+  }
 
-    const interaction = this.refrigerator.identifyInteraction(hits[0]);
+  /** Screen-space raycast (WebXR AR camera or desktop viewer camera). */
+  raycastAtScreen(clientX, clientY, camera) {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, camera);
+
+    return this._intersectInteraction(this.refrigerator.getInteractiveMeshes());
+  }
+
+  _intersectInteraction(meshes) {
+    const hits = this.raycaster.intersectObjects(meshes, false);
+    if (hits.length === 0) return null;
+    return this.refrigerator.identifyInteraction(hits[0]);
+  }
+
+  dispatchInteraction(interaction) {
     if (!interaction) return;
 
     switch (interaction.type) {
