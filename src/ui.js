@@ -117,7 +117,7 @@ export class UIManager {
     this.elements.btnAr.disabled = false;
     this.elements.btnArSecondary.disabled = false;
     const quickLookNote =
-      mode === 'quick-look' ? ' Uses Apple AR on this iPhone (static placement view).' : '';
+      mode === 'quick-look' ? ' Door animations work in the 3D viewer above; Apple AR shows a static placement view.' : '';
     this.elements.arStatus.textContent = `${message || 'AR available. Tap View in AR on your phone (HTTPS required).'}${quickLookNote}`;
   }
 

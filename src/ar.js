@@ -127,15 +127,12 @@ export class ARSessionManager {
 
     if (quickLook) {
       this.arMode = 'quick-look';
-      const iosHint =
-        iosVersion && iosVersion.major < 17
-          ? `Your iPhone is on iOS ${iosVersion.major} (WebXR needs iOS 17+). `
-          : '';
       return {
         supported: true,
         mode: 'quick-look',
         reason: 'quick-look',
-        message: `${iosHint}Tap View in AR to open Apple AR and place the refrigerator in your room.`,
+        message:
+          'On iPhone, Safari uses Apple AR (not in-page WebXR). Tap View in AR to place the refrigerator in your room.',
       };
     }
 
@@ -146,15 +143,15 @@ export class ARSessionManager {
           mode: 'none',
           reason: 'chrome-ios',
           message:
-            'Immersive AR is not available in Chrome on iPhone. Use Safari, HTTPS, and tap View in AR.',
+            'Immersive AR is not available in Chrome on iPhone. Open this page in Safari and tap View in AR.',
         };
       }
-      const versionText = iosVersion ? `iOS ${iosVersion.major}.${iosVersion.minor}` : 'this iOS version';
+      const versionText = iosVersion ? `iOS ${iosVersion.major}.${iosVersion.minor}` : 'this iPhone';
       return {
         supported: false,
         mode: 'none',
-        reason: 'no-webxr-ios',
-        message: `AR is not available on ${versionText}. Update to iOS 17+ for WebXR, or use a device that supports Apple AR Quick Look.`,
+        reason: 'no-ar-ios',
+        message: `AR could not be started on ${versionText}. Try Safari, allow camera access, and reload this page.`,
       };
     }
 
@@ -177,19 +174,32 @@ export class ARSessionManager {
   }
 
   async startQuickLook() {
+    const usdzUrl = new URL(USDZ_PATH, window.location.href).href;
+    const posterUrl = new URL(AR_POSTER_PATH, window.location.href).href;
+
     const anchor = document.createElement('a');
     anchor.setAttribute('rel', 'ar');
-    anchor.href = new URL(USDZ_PATH, window.location.href).href;
+    anchor.href = usdzUrl;
 
     const poster = document.createElement('img');
-    poster.src = new URL(AR_POSTER_PATH, window.location.href).href;
+    poster.src = posterUrl;
     poster.alt = 'Samsung refrigerator AR preview';
     anchor.appendChild(poster);
 
-    anchor.style.display = 'none';
+    anchor.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
     document.body.appendChild(anchor);
+
+    await new Promise((resolve) => {
+      if (poster.complete) {
+        resolve();
+        return;
+      }
+      poster.onload = () => resolve();
+      poster.onerror = () => resolve();
+    });
+
     anchor.click();
-    anchor.remove();
+    window.setTimeout(() => anchor.remove(), 1000);
   }
 
   async start() {
