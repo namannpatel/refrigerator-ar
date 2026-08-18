@@ -1,6 +1,26 @@
 import * as THREE from 'three';
+import { AR_POSTER_PATH, USDZ_PATH } from './config.js';
 
 const RETICLE_RING = 0.35;
+
+function getIOSVersion() {
+  const match = (navigator.userAgent || '').match(/OS (\d+)[_.](\d+)/);
+  if (!match) return null;
+  return { major: Number(match[1]), minor: Number(match[2]) };
+}
+
+function isIOSDevice() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+}
+
+function supportsQuickLookLink() {
+  try {
+    const anchor = document.createElement('a');
+    return Boolean(anchor.relList?.supports?.('ar'));
+  } catch {
+    return false;
+  }
+}
 
 export class ARSessionManager {
   constructor(sceneManager, refrigerator, interactionHandler) {
@@ -31,6 +51,7 @@ export class ARSessionManager {
     this._placementQuaternion = new THREE.Quaternion();
     this._touchStart = null;
     this._startRotationY = 0;
+    this.arMode = 'none';
 
     this.renderer.xr.addEventListener('sessionstart', () => this._onSessionStart());
     this.renderer.xr.addEventListener('sessionend', () => this._onSessionEnd());
@@ -71,6 +92,7 @@ export class ARSessionManager {
     if (!window.isSecureContext) {
       return {
         supported: false,
+        mode: 'none',
         reason: 'insecure',
         message:
           'WebXR AR requires HTTPS. On your phone, open the https:// link from the dev server (not http://) and accept the certificate warning. LAN IPs like 192.168.x.x do not get a secure-context exception.',
@@ -78,71 +100,105 @@ export class ARSessionManager {
     }
 
     const ua = navigator.userAgent || '';
-    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+    const isIOS = isIOSDevice();
+    const iosVersion = getIOSVersion();
     const isChromeIOS = isIOS && /CriOS/i.test(ua);
     const isSafariIOS = isIOS && /Safari/i.test(ua) && !/CriOS|FxiOS/i.test(ua);
+    const quickLook = isIOS && supportsQuickLookLink();
 
-    if (!navigator.xr) {
-      if (isIOS) {
+    if (navigator.xr) {
+      try {
+        const webxrSupported = await navigator.xr.isSessionSupported('immersive-ar');
+        if (webxrSupported) {
+          this.arMode = 'webxr';
+          return {
+            supported: true,
+            mode: 'webxr',
+            reason: 'ok',
+            message: isSafariIOS
+              ? 'AR is available. Tap View in AR and allow camera access.'
+              : 'AR is available on this device. Tap View in AR (HTTPS required).',
+          };
+        }
+      } catch (err) {
+        console.warn('Error checking AR support:', err);
+      }
+    }
+
+    if (quickLook) {
+      this.arMode = 'quick-look';
+      const iosHint =
+        iosVersion && iosVersion.major < 17
+          ? `Your iPhone is on iOS ${iosVersion.major} (WebXR needs iOS 17+). `
+          : '';
+      return {
+        supported: true,
+        mode: 'quick-look',
+        reason: 'quick-look',
+        message: `${iosHint}Tap View in AR to open Apple AR and place the refrigerator in your room.`,
+      };
+    }
+
+    if (isIOS) {
+      if (isChromeIOS) {
         return {
           supported: false,
-          reason: 'no-webxr-ios',
+          mode: 'none',
+          reason: 'chrome-ios',
           message:
-            'WebXR AR needs iOS 17 or later in Safari. Chrome on iPhone uses the same engine — use Safari, update iOS, and open the site over HTTPS.',
+            'Immersive AR is not available in Chrome on iPhone. Use Safari, HTTPS, and tap View in AR.',
         };
       }
+      const versionText = iosVersion ? `iOS ${iosVersion.major}.${iosVersion.minor}` : 'this iOS version';
       return {
         supported: false,
+        mode: 'none',
+        reason: 'no-webxr-ios',
+        message: `AR is not available on ${versionText}. Update to iOS 17+ for WebXR, or use a device that supports Apple AR Quick Look.`,
+      };
+    }
+
+    if (!navigator.xr) {
+      return {
+        supported: false,
+        mode: 'none',
         reason: 'no-webxr',
         message: 'This browser does not expose WebXR. Try Safari on iOS 17+ or Chrome on Android with ARCore.',
       };
     }
 
-    try {
-      const supported = await navigator.xr.isSessionSupported('immersive-ar');
-      if (!supported) {
-        if (isChromeIOS) {
-          return {
-            supported: false,
-            reason: 'chrome-ios',
-            message:
-              'Immersive AR is not available in Chrome on iPhone. Use Safari (iOS 17+), HTTPS, and tap View in AR.',
-          };
-        }
-        if (isSafariIOS) {
-          return {
-            supported: false,
-            reason: 'safari-ios-unsupported',
-            message:
-              'Safari on this iPhone does not report AR support. Update to iOS 17 or later and use HTTPS (not http://).',
-          };
-        }
-        return {
-          supported: false,
-          reason: 'no-immersive-ar',
-          message:
-            'Immersive AR is not supported on this device. Android: use Chrome with ARCore. iPhone: Safari on iOS 17+ over HTTPS.',
-        };
-      }
+    return {
+      supported: false,
+      mode: 'none',
+      reason: 'no-immersive-ar',
+      message:
+        'Immersive AR is not supported on this device. Android: use Chrome with ARCore. iPhone: Safari on iOS 17+ over HTTPS.',
+    };
+  }
 
-      return {
-        supported: true,
-        reason: 'ok',
-        message: isSafariIOS
-          ? 'AR is available. Tap View in AR and allow camera access.'
-          : 'AR is available on this device. Tap View in AR (HTTPS required).',
-      };
-    } catch {
-      return {
-        supported: false,
-        reason: 'check-failed',
-        message: 'Could not verify AR support. Use HTTPS and a compatible browser (Safari iOS 17+ or Android Chrome).',
-      };
-    }
+  async startQuickLook() {
+    const anchor = document.createElement('a');
+    anchor.setAttribute('rel', 'ar');
+    anchor.href = new URL(USDZ_PATH, window.location.href).href;
+
+    const poster = document.createElement('img');
+    poster.src = new URL(AR_POSTER_PATH, window.location.href).href;
+    poster.alt = 'Samsung refrigerator AR preview';
+    anchor.appendChild(poster);
+
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   }
 
   async start() {
     if (this.isActive) return;
+
+    if (this.arMode === 'quick-look') {
+      await this.startQuickLook();
+      return;
+    }
 
     const session = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['hit-test'],

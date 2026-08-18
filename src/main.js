@@ -55,7 +55,7 @@ class App {
       this.arManager.bindDomRotation(this.canvas);
 
       const arStatus = await this.arManager.getAvailability();
-      this.ui.setArSupported(arStatus.supported, arStatus.message);
+      this.ui.setArSupported(arStatus.supported, arStatus.message, arStatus.mode);
 
       this.ui.syncDoorButtons();
       this.ui.elements.btnFinish.textContent = `Finish: ${FINISHES[0].name}`;
@@ -90,7 +90,7 @@ class App {
     this.refrigerator.update(delta);
 
     if (this.arManager?.isActive) {
-      this.arManager.onFrame(timestamp, frame);
+      this.arManager.onFrame(_timestamp, frame);
       this.interaction.enabled = false;
       this.productViewer?.setEnabled(false);
     } else {

@@ -105,18 +105,20 @@ export class UIManager {
     this.elements.errorMessage.textContent = message;
   }
 
-  setArSupported(supported, message) {
+  setArSupported(supported, message, mode = 'none') {
     if (!supported) {
       this.elements.btnAr.disabled = true;
       this.elements.btnArSecondary.disabled = true;
       this.elements.arStatus.textContent =
         message || 'AR is not supported on this device/browser. You can still explore the 3D model.';
-    } else {
-      this.elements.btnAr.disabled = false;
-      this.elements.btnArSecondary.disabled = false;
-      this.elements.arStatus.textContent =
-        message || 'AR available. Tap View in AR on your phone (HTTPS required).';
+      return;
     }
+
+    this.elements.btnAr.disabled = false;
+    this.elements.btnArSecondary.disabled = false;
+    const quickLookNote =
+      mode === 'quick-look' ? ' Uses Apple AR on this iPhone (static placement view).' : '';
+    this.elements.arStatus.textContent = `${message || 'AR available. Tap View in AR on your phone (HTTPS required).'}${quickLookNote}`;
   }
 
   openTempPanel() {

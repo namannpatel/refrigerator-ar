@@ -14,6 +14,11 @@ const assetBase = import.meta.env.BASE_URL;
 
 export const MODEL_PATH = `${assetBase}models/Samsung_Fridge.glb`;
 
+export const USDZ_PATH = `${assetBase}models/Samsung_Fridge.usdz`;
+
+/** Poster for iOS AR Quick Look (required child of rel="ar" link). */
+export const AR_POSTER_PATH = `${assetBase}textures/Samsung_Fridge_low_Samsung_Fridge_Diffuse.jpg`;
+
 export const TEXTURE_BASE = `${assetBase}textures/`;
 
 export const TEXTURES = {

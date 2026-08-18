@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "export-usdz": "node scripts/export-usdz.mjs",
+    "build": "npm run export-usdz && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
