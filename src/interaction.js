@@ -11,6 +11,7 @@ export class InteractionHandler {
     this.pointer = new THREE.Vector2();
     this.enabled = true;
     this._pointerDown = false;
+    this.suppressTap = false;
 
     canvas.addEventListener('pointerdown', this._onPointerDown);
     canvas.addEventListener('pointerup', this._onPointerUp);
@@ -31,6 +32,10 @@ export class InteractionHandler {
   _onPointerUp = (event) => {
     if (!this.enabled || !this._pointerDown) return;
     this._pointerDown = false;
+    if (this.suppressTap) {
+      this.suppressTap = false;
+      return;
+    }
 
     const dx = event.clientX - this._downX;
     const dy = event.clientY - this._downY;
@@ -55,8 +60,10 @@ export class InteractionHandler {
   }
 
   /** Screen-space raycast (WebXR AR camera or desktop viewer camera). */
-  raycastAtScreen(clientX, clientY, camera) {
-    const rect = this.canvas.getBoundingClientRect();
+  raycastAtScreen(clientX, clientY, camera, { immersive = false } = {}) {
+    const rect = immersive
+      ? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+      : this.canvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return null;
 
     this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
@@ -67,9 +74,13 @@ export class InteractionHandler {
   }
 
   _intersectInteraction(meshes) {
+    this.refrigerator.root.updateMatrixWorld(true);
     const hits = this.raycaster.intersectObjects(meshes, false);
-    if (hits.length === 0) return null;
-    return this.refrigerator.identifyInteraction(hits[0]);
+    for (const hit of hits) {
+      const interaction = this.refrigerator.identifyInteraction(hit);
+      if (interaction) return interaction;
+    }
+    return null;
   }
 
   dispatchInteraction(interaction) {

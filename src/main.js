@@ -99,8 +99,13 @@ class App {
 
       if (this.arManager?.isActive) {
         this.arManager.onFrame(_timestamp, frame);
-        this.interaction.enabled = false;
-        this.productViewer?.setEnabled(false);
+        if (this.arManager.allowsScreenInteraction()) {
+          this.interaction.enabled = true;
+          this.productViewer?.setEnabled(false);
+        } else {
+          this.interaction.enabled = false;
+          this.productViewer?.setEnabled(false);
+        }
       } else {
         this.productViewer?.update();
         this.interaction.enabled = true;

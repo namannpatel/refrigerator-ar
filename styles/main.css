@@ -484,6 +484,45 @@ body {
   border-color: var(--danger);
 }
 
+/* iOS Safari interactive AR (camera passthrough — not Apple Quick Look) */
+.camera-ar-video {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+  background: #000;
+}
+
+body.camera-ar-active {
+  overflow: hidden;
+}
+
+body.camera-ar-active #app > .site-header,
+body.camera-ar-active #app > main {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.camera-ar-active .viewer-panel,
+body.camera-ar-active .viewer-container,
+body.camera-ar-active #three-canvas {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  z-index: 2;
+}
+
+body.camera-ar-active #ar-controls {
+  visibility: visible;
+  z-index: 100;
+}
+
 /* Responsive */
 @media (max-width: 960px) {
   .product-layout {

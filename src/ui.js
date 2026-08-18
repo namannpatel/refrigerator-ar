@@ -43,6 +43,7 @@ export class UIManager {
       arReset: document.getElementById('ar-reset'),
       arRemove: document.getElementById('ar-remove'),
       arExit: document.getElementById('ar-exit'),
+      arAppleLook: document.getElementById('ar-apple-look'),
     };
 
     this._bindEvents();
@@ -87,6 +88,9 @@ export class UIManager {
     this.elements.arReset.addEventListener('click', () => this.app.arManager?.resetPosition());
     this.elements.arRemove.addEventListener('click', () => this.app.arManager?.removeModel());
     this.elements.arExit.addEventListener('click', () => this.app.arManager?.exit());
+    if (this.elements.arAppleLook) {
+      this.elements.arAppleLook.addEventListener('click', () => this.app.arManager?.startQuickLook());
+    }
   }
 
   _populateSpecs() {
@@ -123,7 +127,11 @@ export class UIManager {
     this.elements.btnAr.disabled = false;
     this.elements.btnArSecondary.disabled = false;
     const quickLookNote =
-      mode === 'quick-look' ? ' Door animations work in the 3D viewer above; Apple AR shows a static placement view.' : '';
+      mode === 'camera-ar'
+        ? ' Use the door buttons in AR, or tap directly on the model.'
+        : mode === 'quick-look'
+          ? ' Door animations work in the 3D viewer above; Apple AR shows a static placement view.'
+          : '';
     this.elements.arStatus.textContent = `${message || 'AR available. Tap View in AR on your phone (HTTPS required).'}${quickLookNote}`;
   }
 

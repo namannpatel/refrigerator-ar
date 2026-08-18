@@ -56,6 +56,12 @@ export class ARSessionManager {
     this._canvasDownX = 0;
     this._canvasDownY = 0;
     this._tapDedupeUntil = 0;
+    this._rayMatrix = new THREE.Matrix4();
+    this._rayOrigin = new THREE.Vector3();
+    this._rayDirection = new THREE.Vector3();
+    this._cameraARVideo = null;
+    this._cameraARStream = null;
+    this._savedCameraAR = null;
     this.arMode = 'none';
 
     this.renderer.xr.addEventListener('sessionstart', () => this._onSessionStart());
@@ -131,13 +137,13 @@ export class ARSessionManager {
     }
 
     if (quickLook) {
-      this.arMode = 'quick-look';
+      this.arMode = 'camera-ar';
       return {
         supported: true,
-        mode: 'quick-look',
-        reason: 'quick-look',
+        mode: 'camera-ar',
+        reason: 'camera-ar',
         message:
-          'On iPhone, Safari uses Apple AR (not in-page WebXR). Tap View in AR to place the refrigerator in your room.',
+          'Interactive AR in Safari: tap View in AR, then tap doors and the freezer on the model. (Apple’s separate AR viewer cannot run door animations.)',
       };
     }
 
@@ -179,6 +185,10 @@ export class ARSessionManager {
   }
 
   async startQuickLook() {
+    if (this.arMode === 'camera-ar') {
+      this._endCameraAR();
+    }
+
     const usdzUrl = new URL(USDZ_PATH, window.location.href).href;
     const posterUrl = new URL(AR_POSTER_PATH, window.location.href).href;
 
@@ -207,22 +217,135 @@ export class ARSessionManager {
     window.setTimeout(() => anchor.remove(), 1000);
   }
 
+  allowsScreenInteraction() {
+    return this.isActive && this.arMode === 'camera-ar';
+  }
+
+  isWebXRSession() {
+    return this.isActive && this.arMode === 'webxr';
+  }
+
   async start() {
     if (this.isActive) return;
 
-    if (this.arMode === 'quick-look') {
-      await this.startQuickLook();
+    if (navigator.xr) {
+      try {
+        const webxrSupported = await navigator.xr.isSessionSupported('immersive-ar');
+        if (webxrSupported) {
+          await this._startWebXR();
+          return;
+        }
+      } catch (err) {
+        console.warn('WebXR AR not available:', err);
+      }
+    }
+
+    if (this.arMode === 'camera-ar' || (isIOSDevice() && supportsQuickLookLink())) {
+      await this._startCameraAR();
       return;
     }
 
+    throw new Error('AR is not supported on this device.');
+  }
+
+  async _startWebXR() {
     const session = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['hit-test'],
-      optionalFeatures: ['local-floor', 'dom-overlay'],
+      optionalFeatures: ['local-floor', 'dom-overlay', 'transient-pointer'],
       domOverlay: { root: document.getElementById('ar-controls') },
     });
 
     await this.renderer.xr.setSession(session);
+    this.arMode = 'webxr';
     this.isActive = true;
+  }
+
+  async _startCameraAR() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false,
+    });
+
+    this._cameraARStream = stream;
+    this._cameraARVideo = document.createElement('video');
+    this._cameraARVideo.className = 'camera-ar-video';
+    this._cameraARVideo.srcObject = stream;
+    this._cameraARVideo.playsInline = true;
+    this._cameraARVideo.muted = true;
+    this._cameraARVideo.setAttribute('playsinline', '');
+    document.body.appendChild(this._cameraARVideo);
+    await this._cameraARVideo.play();
+    document.body.classList.add('camera-ar-active');
+
+    this.sceneManager.setStudioVisible(false);
+    this.sceneManager.configureForAR(true);
+    this.scene.background = null;
+    this.renderer.setClearColor(0x000000, 0);
+
+    this._savedCameraAR = {
+      position: this.camera.position.clone(),
+      quaternion: this.camera.quaternion.clone(),
+    };
+
+    const height = this.refrigerator.worldHeight || 1.78;
+    const midY = height * 0.45;
+    this.camera.position.set(0, midY, height * 1.25);
+    this.camera.lookAt(0, midY, 0);
+
+    this.sceneManager.productRoot.add(this.refrigerator.root);
+    this.refrigerator.root.position.set(0, 0, 0);
+    this.refrigerator.root.rotation.set(0, 0, 0);
+    this.refrigerator.root.visible = true;
+    this.isPlaced = true;
+    this.isActive = true;
+    this.arMode = 'camera-ar';
+    this.mode = 'move';
+
+    this._placementPosition.set(0, 0, 0);
+    this._placementQuaternion.set(0, 0, 0, 1);
+    this._startRotationY = 0;
+
+    if (this.modelLoader) {
+      this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
+    }
+
+    document.getElementById('ar-controls').classList.remove('hidden');
+    this._updateHint('Tap a door or the freezer on the model to open it.');
+    this.sceneManager.resize();
+  }
+
+  _endCameraAR() {
+    if (this._cameraARStream) {
+      this._cameraARStream.getTracks().forEach((track) => track.stop());
+      this._cameraARStream = null;
+    }
+    if (this._cameraARVideo) {
+      this._cameraARVideo.remove();
+      this._cameraARVideo = null;
+    }
+    document.body.classList.remove('camera-ar-active');
+
+    if (this._savedCameraAR) {
+      this.camera.position.copy(this._savedCameraAR.position);
+      this.camera.quaternion.copy(this._savedCameraAR.quaternion);
+      this._savedCameraAR = null;
+    }
+
+    this.renderer.setClearColor(0x000000, 1);
+    this.sceneManager.productRoot.add(this.refrigerator.root);
+    this.refrigerator.root.position.set(0, 0, 0);
+    this.refrigerator.root.rotation.set(0, 0, 0);
+    this.refrigerator.root.visible = true;
+
+    this.sceneManager.setStudioVisible(true);
+    this.sceneManager.configureForAR(false);
+    this.scene.background = this.sceneManager._studioBackground.clone();
+
+    this.isActive = false;
+    this.isPlaced = false;
+    this.arMode = 'none';
+    document.getElementById('ar-controls').classList.add('hidden');
+    this.sceneManager.resize();
   }
 
   async _onSessionStart() {
@@ -255,7 +378,7 @@ export class ARSessionManager {
 
   _bindImmersiveTapListeners() {
     this._onWindowPointerDown = (event) => {
-      if (!this.isActive) return;
+      if (!this.isWebXRSession()) return;
       const arControls = document.getElementById('ar-controls');
       if (arControls?.contains(event.target)) return;
       this._canvasPointerDown = true;
@@ -264,7 +387,7 @@ export class ARSessionManager {
     };
 
     this._onWindowPointerUp = (event) => {
-      if (!this.isActive || !this._canvasPointerDown) return;
+      if (!this.isWebXRSession() || !this._canvasPointerDown) return;
       const arControls = document.getElementById('ar-controls');
       if (arControls?.contains(event.target)) return;
 
@@ -350,6 +473,7 @@ export class ARSessionManager {
       clientX,
       clientY,
       this._getInteractionCamera(),
+      { immersive: true },
     );
 
     if (interaction) {
@@ -372,26 +496,21 @@ export class ARSessionManager {
     const pose = frame.getPose(event.inputSource.targetRaySpace, referenceSpace);
     if (!pose) return false;
 
-    const origin = new THREE.Vector3(
-      pose.transform.position.x,
-      pose.transform.position.y,
-      pose.transform.position.z,
-    );
-    const quaternion = new THREE.Quaternion(
-      pose.transform.orientation.x,
-      pose.transform.orientation.y,
-      pose.transform.orientation.z,
-      pose.transform.orientation.w,
-    );
-    const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion).normalize();
+    this._rayMatrix.fromArray(pose.transform.matrix);
+    this._rayOrigin.setFromMatrixPosition(this._rayMatrix);
+    this._rayDirection.set(0, 0, -1).transformDirection(this._rayMatrix).normalize();
 
     const raycaster = this.interactionHandler.raycaster;
     const meshes = this.refrigerator.getInteractiveMeshes();
-    raycaster.set(origin, direction);
-    const hits = raycaster.intersectObjects(meshes, false);
-    if (hits.length === 0) return false;
+    this.refrigerator.root.updateMatrixWorld(true);
+    raycaster.set(this._rayOrigin, this._rayDirection);
 
-    const interaction = this.refrigerator.identifyInteraction(hits[0]);
+    const hits = raycaster.intersectObjects(meshes, false);
+    let interaction = null;
+    for (const hit of hits) {
+      interaction = this.refrigerator.identifyInteraction(hit);
+      if (interaction) break;
+    }
     if (!interaction) return false;
 
     this._tapDedupeUntil = Date.now() + 400;
@@ -443,6 +562,12 @@ export class ARSessionManager {
 
   resetPosition() {
     if (!this.isPlaced) return;
+    if (this.arMode === 'camera-ar') {
+      this.refrigerator.root.position.set(0, 0, 0);
+      this.refrigerator.root.rotation.set(0, 0, 0);
+      this._startRotationY = 0;
+      return;
+    }
     this.refrigerator.root.position.copy(this._placementPosition);
     this.refrigerator.root.quaternion.copy(this._placementQuaternion);
     this._startRotationY = this.refrigerator.root.rotation.y;
@@ -456,6 +581,10 @@ export class ARSessionManager {
   }
 
   exit() {
+    if (this.arMode === 'camera-ar') {
+      this._endCameraAR();
+      return;
+    }
     const session = this.renderer.xr.getSession();
     if (session) session.end();
   }
@@ -466,7 +595,7 @@ export class ARSessionManager {
   }
 
   onFrame(timestamp, frame) {
-    if (!this.isActive || !frame) return;
+    if (!this.isWebXRSession() || !frame) return;
 
     const session = frame.session;
     const pose = frame.getViewerPose(this.referenceSpace);
@@ -531,6 +660,7 @@ export class ARSessionManager {
 
   handlePointerEnd() {
     this._touchStart = null;
+    if (this.interactionHandler) this.interactionHandler.suppressTap = false;
   }
 
   bindDomRotation(canvas) {
@@ -538,6 +668,7 @@ export class ARSessionManager {
       if (this.isActive && this.isPlaced && this.mode === 'rotate') {
         this._touchStart = { x: e.clientX, y: e.clientY };
         this._startRotationY = this.refrigerator.root.rotation.y;
+        if (this.interactionHandler) this.interactionHandler.suppressTap = true;
       }
     });
     canvas.addEventListener('pointermove', (e) => {
