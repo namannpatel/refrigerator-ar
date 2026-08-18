@@ -21,7 +21,6 @@ export class UIManager {
       btnSpecs: document.getElementById('btn-specs'),
       btnFinish: document.getElementById('btn-finish'),
       btnAr: document.getElementById('btn-ar'),
-      btnInteractiveAr: document.getElementById('btn-interactive-ar'),
       btnArSecondary: document.getElementById('btn-ar-secondary'),
       arStatus: document.getElementById('ar-status'),
       tempPanel: document.getElementById('temp-panel'),
@@ -41,7 +40,6 @@ export class UIManager {
       arFreezer: document.getElementById('ar-freezer'),
       arReset: document.getElementById('ar-reset'),
       arExit: document.getElementById('ar-exit'),
-      arPlaceRoom: document.getElementById('ar-place-room'),
     };
 
     this._bindEvents();
@@ -71,9 +69,6 @@ export class UIManager {
     this.elements.btnFinish.addEventListener('click', () => this.cycleFinish());
     this.elements.btnAr.addEventListener('click', () => this.app.startAR());
     this.elements.btnArSecondary.addEventListener('click', () => this.app.startAR());
-    if (this.elements.btnInteractiveAr) {
-      this.elements.btnInteractiveAr.addEventListener('click', () => this.app.startInteractiveAR());
-    }
 
     this.elements.tempPanelClose.addEventListener('click', () => this.elements.tempPanel.close());
     this.elements.fridgeTempUp.addEventListener('click', () => this.adjustTemp('fridge', 1));
@@ -92,9 +87,6 @@ export class UIManager {
     }
     this.elements.arReset.addEventListener('click', () => this.app.arManager?.resetPosition());
     this.elements.arExit.addEventListener('click', () => this.app.arManager?.exit());
-    if (this.elements.arPlaceRoom) {
-      this.elements.arPlaceRoom.addEventListener('click', () => this.app.arManager?.startQuickLook());
-    }
   }
 
   _populateSpecs() {
@@ -131,17 +123,11 @@ export class UIManager {
     this.elements.btnAr.disabled = false;
     this.elements.btnArSecondary.disabled = false;
 
-    if (this.elements.btnInteractiveAr) {
-      this.elements.btnInteractiveAr.classList.toggle('hidden', mode !== 'quick-look');
-    }
-
-    const quickLookNote =
-      mode === 'quick-look'
-        ? ' View in AR opens Apple AR to place the fridge in your room. Interactive 3D keeps it on screen with doors and gestures.'
-        : mode === 'camera-ar'
-          ? ' Pinch to zoom and drag to rotate.'
-          : '';
-    this.elements.arStatus.textContent = `${message || 'AR available. Tap View in AR on your phone (HTTPS required).'}${quickLookNote}`;
+    const modeNote =
+      mode === 'camera-ar'
+        ? ' Pinch to zoom and drag to rotate in AR.'
+        : '';
+    this.elements.arStatus.textContent = `${message || 'AR available. Tap View in AR on your phone (HTTPS required).'}${modeNote}`;
   }
 
   openTempPanel() {

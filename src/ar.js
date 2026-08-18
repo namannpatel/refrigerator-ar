@@ -140,13 +140,13 @@ export class ARSessionManager {
     }
 
     if (quickLook) {
-      this.arMode = 'quick-look';
+      this.arMode = 'camera-ar';
       return {
         supported: true,
-        mode: 'quick-look',
-        reason: 'quick-look',
+        mode: 'camera-ar',
+        reason: 'camera-ar',
         message:
-          'Tap View in AR to place the refrigerator in your room. Use Interactive 3D for doors and pinch-zoom on screen.',
+          'Tap View in AR. Use the door buttons below the model, or pinch and drag to move the view.',
       };
     }
 
@@ -313,22 +313,11 @@ export class ARSessionManager {
       }
 
       if (isIOSDevice() && supportsQuickLookLink()) {
-        await this.startQuickLook();
+        await this._startCameraAR();
         return;
       }
 
       throw new Error('AR is not supported on this device.');
-    } catch (err) {
-      this.forceExit();
-      throw err;
-    }
-  }
-
-  /** Screen overlay AR (doors + gestures) — not room-scale placement on iPhone. */
-  async startInteractiveAR() {
-    if (this.isActive) return;
-    try {
-      await this._startCameraAR();
     } catch (err) {
       this.forceExit();
       throw err;
@@ -418,7 +407,7 @@ export class ARSessionManager {
     this._resizeCameraARViewport();
     this.interactionHandler.setPaused?.(true);
     this._bindCameraARTouches();
-    this._updateHint('Pinch to zoom. Drag to rotate. Tap a door to open it.');
+    this._updateHint('Use door buttons below. Pinch to zoom, drag to rotate.');
 
     this._onCameraARResize = () => this._resizeCameraARViewport();
     window.addEventListener('resize', this._onCameraARResize);
@@ -507,7 +496,7 @@ export class ARSessionManager {
     this.reticle.visible = true;
 
     this._setARSessionUI(true);
-    this._updateHint('Point at a flat surface and tap to place the refrigerator.');
+    this._updateHint('Tap a surface to place. Then use door buttons or tap the model.');
 
     if (this.modelLoader) {
       this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
