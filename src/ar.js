@@ -64,6 +64,7 @@ export class ARSessionManager {
     this._cameraARVideo = null;
     this._cameraARStream = null;
     this._camTouchStart = null;
+    this._canvasRestore = null;
     this.arMode = 'none';
 
     this.renderer.xr.addEventListener('sessionstart', () => this._onSessionStart());
@@ -139,13 +140,13 @@ export class ARSessionManager {
     }
 
     if (quickLook) {
-      this.arMode = 'camera-ar';
+      this.arMode = 'quick-look';
       return {
         supported: true,
-        mode: 'camera-ar',
-        reason: 'camera-ar',
+        mode: 'quick-look',
+        reason: 'quick-look',
         message:
-          'Tap View in AR for interactive Safari AR. Pinch to zoom and drag to rotate the model.',
+          'Tap View in AR to place the refrigerator in your room. Use Interactive 3D for doors and pinch-zoom on screen.',
       };
     }
 
@@ -311,8 +312,8 @@ export class ARSessionManager {
         }
       }
 
-      if (this.arMode === 'camera-ar' || (isIOSDevice() && supportsQuickLookLink())) {
-        await this._startCameraAR();
+      if (isIOSDevice() && supportsQuickLookLink()) {
+        await this.startQuickLook();
         return;
       }
 
@@ -321,6 +322,37 @@ export class ARSessionManager {
       this.forceExit();
       throw err;
     }
+  }
+
+  /** Screen overlay AR (doors + gestures) — not room-scale placement on iPhone. */
+  async startInteractiveAR() {
+    if (this.isActive) return;
+    try {
+      await this._startCameraAR();
+    } catch (err) {
+      this.forceExit();
+      throw err;
+    }
+  }
+
+  _attachCanvasFullscreen() {
+    if (this._canvasRestore) return;
+    this._canvasRestore = {
+      parent: this.canvas.parentNode,
+      nextSibling: this.canvas.nextSibling,
+    };
+    document.body.appendChild(this.canvas);
+  }
+
+  _restoreCanvasLayout() {
+    if (!this._canvasRestore) return;
+    const { parent, nextSibling } = this._canvasRestore;
+    if (nextSibling) {
+      parent.insertBefore(this.canvas, nextSibling);
+    } else {
+      parent.appendChild(this.canvas);
+    }
+    this._canvasRestore = null;
   }
 
   async _startWebXR() {
@@ -353,6 +385,7 @@ export class ARSessionManager {
 
     document.body.classList.add('camera-ar-active');
     this._setARSessionUI(true);
+    this._attachCanvasFullscreen();
 
     this.sceneManager.setStudioVisible(false);
     this.sceneManager.configureForAR(true);
@@ -424,6 +457,7 @@ export class ARSessionManager {
 
     document.body.classList.remove('camera-ar-active');
     this._setARSessionUI(false);
+    this._restoreCanvasLayout();
 
     window.removeEventListener('resize', this._onCameraARResize);
     this._onCameraARResize = null;

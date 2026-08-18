@@ -131,6 +131,21 @@ class App {
     this.modelLoader.setFinish(this.refrigerator.root, finish);
   }
 
+  async startInteractiveAR() {
+    if (!this.arManager) return;
+    try {
+      await this.arManager.startInteractiveAR();
+    } catch (error) {
+      console.error('Interactive AR failed:', error);
+      this.arManager?.forceExit();
+      const msg =
+        error?.name === 'NotAllowedError'
+          ? 'Camera permission denied.'
+          : `Interactive AR failed: ${error?.message || 'Unknown error'}`;
+      this.ui.elements.arStatus.textContent = msg;
+    }
+  }
+
   async startAR() {
     if (!this.arManager) return;
     try {

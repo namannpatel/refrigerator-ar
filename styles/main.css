@@ -541,6 +541,7 @@ body.camera-ar-active #three-canvas {
   visibility: visible !important;
   z-index: 2;
   touch-action: none;
+  pointer-events: auto;
 }
 
 body.camera-ar-active #viewer-overlay {
