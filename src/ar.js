@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { AR_POSTER_PATH, USDZ_PATH } from './config.js';
 
 const RETICLE_RING = 0.35;
@@ -24,11 +23,13 @@ function supportsQuickLookLink() {
 }
 
 export class ARSessionManager {
-  constructor(sceneManager, refrigerator, interactionHandler, modelLoader = null) {
+  constructor(sceneManager, refrigerator, interactionHandler, modelLoader = null, productViewer = null) {
     this.sceneManager = sceneManager;
     this.refrigerator = refrigerator;
     this.interactionHandler = interactionHandler;
     this.modelLoader = modelLoader;
+    this.productViewer = productViewer;
+    this.canvas = sceneManager.canvas;
     this.renderer = sceneManager.renderer;
     this.scene = sceneManager.scene;
     this.camera = sceneManager.camera;
@@ -62,9 +63,7 @@ export class ARSessionManager {
     this._rayDirection = new THREE.Vector3();
     this._cameraARVideo = null;
     this._cameraARStream = null;
-    this._savedCameraAR = null;
-    this._cameraARControls = null;
-    this._cameraARTargetY = 0;
+    this._camTouchStart = null;
     this.arMode = 'none';
 
     this.renderer.xr.addEventListener('sessionstart', () => this._onSessionStart());
@@ -188,7 +187,7 @@ export class ARSessionManager {
   }
 
   async startQuickLook() {
-    if (this.arMode === 'camera-ar') {
+    if (this.arMode === 'camera-ar' || this._cameraARVideo || this._cameraARStream) {
       this._endCameraAR();
     }
 
@@ -225,35 +224,103 @@ export class ARSessionManager {
   }
 
   updateCameraAR() {
-    if (this.arMode !== 'camera-ar' || !this._cameraARControls) return;
-    this._cameraARControls.update();
+    if (this.arMode !== 'camera-ar' || !this.productViewer) return;
+    this.productViewer.controls.update();
   }
 
   isWebXRSession() {
     return this.isActive && this.arMode === 'webxr';
   }
 
+  _setARSessionUI(active) {
+    document.body.classList.toggle('ar-session-active', active);
+    const arControls = document.getElementById('ar-controls');
+    if (arControls) {
+      if (active) arControls.removeAttribute('hidden');
+      else arControls.setAttribute('hidden', '');
+    }
+  }
+
+  _bindCameraARTouches() {
+    this._onCameraTouchStart = (event) => {
+      if (!this.isActive || this.arMode !== 'camera-ar') return;
+      if (event.target.closest('#ar-controls')) return;
+      if (event.touches.length !== 1) return;
+      this._camTouchStart = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+      };
+    };
+
+    this._onCameraTouchEnd = (event) => {
+      if (!this._camTouchStart || !this.interactionHandler) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+
+      const dx = touch.clientX - this._camTouchStart.x;
+      const dy = touch.clientY - this._camTouchStart.y;
+      this._camTouchStart = null;
+      if (Math.hypot(dx, dy) > 18) return;
+
+      const interaction = this.interactionHandler.raycastAtScreen(
+        touch.clientX,
+        touch.clientY,
+        this.camera,
+      );
+      if (interaction) this.interactionHandler.dispatchInteraction(interaction);
+    };
+
+    this.canvas.addEventListener('touchstart', this._onCameraTouchStart, { passive: true });
+    this.canvas.addEventListener('touchend', this._onCameraTouchEnd, { passive: true });
+  }
+
+  _unbindCameraARTouches() {
+    if (this._onCameraTouchStart) {
+      this.canvas.removeEventListener('touchstart', this._onCameraTouchStart);
+    }
+    if (this._onCameraTouchEnd) {
+      this.canvas.removeEventListener('touchend', this._onCameraTouchEnd);
+    }
+    this._onCameraTouchStart = null;
+    this._onCameraTouchEnd = null;
+    this._camTouchStart = null;
+  }
+
+  forceExit() {
+    if (this.arMode === 'camera-ar' || this._cameraARVideo || this._cameraARStream) {
+      this._endCameraAR();
+      return;
+    }
+    const session = this.renderer.xr.getSession();
+    if (session) session.end();
+  }
+
   async start() {
     if (this.isActive) return;
 
-    if (navigator.xr) {
-      try {
-        const webxrSupported = await navigator.xr.isSessionSupported('immersive-ar');
-        if (webxrSupported) {
-          await this._startWebXR();
-          return;
+    try {
+      if (navigator.xr) {
+        try {
+          const webxrSupported = await navigator.xr.isSessionSupported('immersive-ar');
+          if (webxrSupported) {
+            await this._startWebXR();
+            return;
+          }
+        } catch (err) {
+          console.warn('WebXR AR not available:', err);
         }
-      } catch (err) {
-        console.warn('WebXR AR not available:', err);
       }
-    }
 
-    if (this.arMode === 'camera-ar' || (isIOSDevice() && supportsQuickLookLink())) {
-      await this._startCameraAR();
-      return;
-    }
+      if (this.arMode === 'camera-ar' || (isIOSDevice() && supportsQuickLookLink())) {
+        await this._startCameraAR();
+        return;
+      }
 
-    throw new Error('AR is not supported on this device.');
+      throw new Error('AR is not supported on this device.');
+    } catch (err) {
+      this.forceExit();
+      throw err;
+    }
   }
 
   async _startWebXR() {
@@ -283,7 +350,9 @@ export class ARSessionManager {
     this._cameraARVideo.setAttribute('playsinline', '');
     document.body.appendChild(this._cameraARVideo);
     await this._cameraARVideo.play();
+
     document.body.classList.add('camera-ar-active');
+    this._setARSessionUI(true);
 
     this.sceneManager.setStudioVisible(false);
     this.sceneManager.configureForAR(true);
@@ -291,20 +360,20 @@ export class ARSessionManager {
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.setClearAlpha(0);
 
-    this._savedCameraAR = {
-      position: this.camera.position.clone(),
-      quaternion: this.camera.quaternion.clone(),
-    };
-
-    const height = this.refrigerator.worldHeight || 1.78;
-    const midY = height * 0.45;
-    this._cameraARTargetY = midY;
-
     this.sceneManager.productRoot.add(this.refrigerator.root);
     this.refrigerator.root.position.set(0, 0, 0);
     this.refrigerator.root.rotation.set(0, 0, 0);
     this.refrigerator.root.visible = true;
     this.refrigerator.root.updateMatrixWorld(true);
+
+    if (this.modelLoader) {
+      this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
+    }
+
+    if (this.productViewer) {
+      this.productViewer.configureForCameraAR();
+    }
+
     this.isPlaced = true;
     this.isActive = true;
     this.arMode = 'camera-ar';
@@ -313,60 +382,13 @@ export class ARSessionManager {
     this._placementQuaternion.set(0, 0, 0, 1);
     this._startRotationY = 0;
 
-    if (this.modelLoader) {
-      this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
-    }
-
     this._resizeCameraARViewport();
-    this._setupCameraARControls(height, midY);
+    this.interactionHandler.setPaused?.(true);
+    this._bindCameraARTouches();
+    this._updateHint('Pinch to zoom. Drag to rotate. Tap a door to open it.');
 
-    document.getElementById('ar-controls').classList.remove('hidden');
-    this._updateHint('Pinch to zoom. Drag to rotate. Two fingers to move.');
     this._onCameraARResize = () => this._resizeCameraARViewport();
     window.addEventListener('resize', this._onCameraARResize);
-  }
-
-  _setupCameraARControls(height, midY) {
-    if (this._cameraARControls) {
-      this._cameraARControls.dispose();
-    }
-
-    const controls = new OrbitControls(this.camera, this.canvas);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enablePan = true;
-    controls.screenSpacePanning = true;
-    controls.panSpeed = 0.8;
-    controls.rotateSpeed = 0.65;
-    controls.zoomSpeed = 0.9;
-    controls.target.set(0, midY, 0);
-    controls.minDistance = height * 0.35;
-    controls.maxDistance = height * 2.8;
-    controls.maxPolarAngle = Math.PI * 0.88;
-    controls.minPolarAngle = 0.15;
-
-    this.camera.near = height * 0.02;
-    this.camera.far = height * 25;
-
-    const dist = height * 1.15;
-    this.camera.position.set(dist * 0.75, midY + height * 0.08, dist);
-    controls.update();
-
-    this._cameraARControls = controls;
-  }
-
-  _resetCameraARView() {
-    if (!this._cameraARControls) return;
-
-    const height = this.refrigerator.worldHeight || 1.78;
-    const midY = height * 0.45;
-    this.refrigerator.root.position.set(0, 0, 0);
-    this.refrigerator.root.rotation.set(0, 0, 0);
-
-    this._cameraARControls.target.set(0, midY, 0);
-    const dist = height * 1.15;
-    this.camera.position.set(dist * 0.75, midY + height * 0.08, dist);
-    this._cameraARControls.update();
   }
 
   _resizeCameraARViewport() {
@@ -380,7 +402,17 @@ export class ARSessionManager {
     this.renderer.setSize(w, h, false);
   }
 
+  _resetCameraARView() {
+    if (this.productViewer) {
+      this.productViewer.configureForCameraAR();
+    }
+    this.refrigerator.root.position.set(0, 0, 0);
+    this.refrigerator.root.rotation.set(0, 0, 0);
+  }
+
   _endCameraAR() {
+    this._unbindCameraARTouches();
+
     if (this._cameraARStream) {
       this._cameraARStream.getTracks().forEach((track) => track.stop());
       this._cameraARStream = null;
@@ -389,19 +421,15 @@ export class ARSessionManager {
       this._cameraARVideo.remove();
       this._cameraARVideo = null;
     }
+
     document.body.classList.remove('camera-ar-active');
+    this._setARSessionUI(false);
+
     window.removeEventListener('resize', this._onCameraARResize);
     this._onCameraARResize = null;
 
-    if (this._cameraARControls) {
-      this._cameraARControls.dispose();
-      this._cameraARControls = null;
-    }
-
-    if (this._savedCameraAR) {
-      this.camera.position.copy(this._savedCameraAR.position);
-      this.camera.quaternion.copy(this._savedCameraAR.quaternion);
-      this._savedCameraAR = null;
+    if (this.productViewer) {
+      this.productViewer.restoreAfterCameraAR();
     }
 
     this.renderer.setClearColor(0x000000, 1);
@@ -418,7 +446,11 @@ export class ARSessionManager {
     this.isActive = false;
     this.isPlaced = false;
     this.arMode = 'none';
-    document.getElementById('ar-controls').classList.add('hidden');
+
+    if (this.interactionHandler) {
+      this.interactionHandler.setPaused(false);
+    }
+
     this.sceneManager.resize();
   }
 
@@ -440,7 +472,7 @@ export class ARSessionManager {
     this.refrigerator.root.visible = false;
     this.reticle.visible = true;
 
-    document.getElementById('ar-controls').classList.remove('hidden');
+    this._setARSessionUI(true);
     this._updateHint('Point at a flat surface and tap to place the refrigerator.');
 
     if (this.modelLoader) {
@@ -492,6 +524,9 @@ export class ARSessionManager {
 
   _onSessionEnd() {
     this._unbindImmersiveTapListeners();
+    this._setARSessionUI(false);
+    document.body.classList.remove('camera-ar-active');
+
     this.isActive = false;
     this.isPlaced = false;
     this.hitTestSource = null;
@@ -505,7 +540,6 @@ export class ARSessionManager {
 
     this.sceneManager.setStudioVisible(true);
     this.sceneManager.configureForAR(false);
-    document.getElementById('ar-controls').classList.add('hidden');
   }
 
   _onSelect(event) {

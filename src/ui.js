@@ -35,8 +35,10 @@ export class UIManager {
       specsModalClose: document.getElementById('specs-modal-close'),
       specsDetailList: document.getElementById('specs-detail-list'),
       dispenserFeedback: document.getElementById('dispenser-feedback'),
+      arLeftDoor: document.getElementById('ar-left-door'),
+      arRightDoor: document.getElementById('ar-right-door'),
+      arFreezer: document.getElementById('ar-freezer'),
       arReset: document.getElementById('ar-reset'),
-      arRemove: document.getElementById('ar-remove'),
       arExit: document.getElementById('ar-exit'),
       arAppleLook: document.getElementById('ar-apple-look'),
     };
@@ -75,8 +77,16 @@ export class UIManager {
     this.elements.freezerTempUp.addEventListener('click', () => this.adjustTemp('freezer', 1));
     this.elements.freezerTempDown.addEventListener('click', () => this.adjustTemp('freezer', -1));
 
+    if (this.elements.arLeftDoor) {
+      this.elements.arLeftDoor.addEventListener('click', () => this._toggleDoor('left'));
+    }
+    if (this.elements.arRightDoor) {
+      this.elements.arRightDoor.addEventListener('click', () => this._toggleDoor('right'));
+    }
+    if (this.elements.arFreezer) {
+      this.elements.arFreezer.addEventListener('click', () => this._toggleDoor('freezer'));
+    }
     this.elements.arReset.addEventListener('click', () => this.app.arManager?.resetPosition());
-    this.elements.arRemove.addEventListener('click', () => this.app.arManager?.removeModel());
     this.elements.arExit.addEventListener('click', () => this.app.arManager?.exit());
     if (this.elements.arAppleLook) {
       this.elements.arAppleLook.addEventListener('click', () => this.app.arManager?.startQuickLook());
@@ -171,5 +181,9 @@ export class UIManager {
     this.elements.btnLeftDoor.textContent = leftLabel;
     this.elements.btnRightDoor.textContent = rightLabel;
     this.elements.btnFreezer.textContent = freezerLabel;
+
+    if (this.elements.arLeftDoor) this.elements.arLeftDoor.textContent = leftLabel;
+    if (this.elements.arRightDoor) this.elements.arRightDoor.textContent = rightLabel;
+    if (this.elements.arFreezer) this.elements.arFreezer.textContent = freezerLabel;
   }
 }

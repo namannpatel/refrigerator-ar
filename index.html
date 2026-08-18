@@ -145,12 +145,16 @@
         <dl class="specs-detail-list" id="specs-detail-list"></dl>
       </dialog>
 
-      <!-- AR controls overlay -->
-      <div id="ar-controls" class="ar-controls hidden" role="toolbar" aria-label="AR controls">
+      <!-- AR controls (only visible during an active AR session) -->
+      <div id="ar-controls" class="ar-controls" role="toolbar" aria-label="AR controls" hidden>
         <p class="ar-hint" id="ar-hint">Point at a flat surface and tap to place the refrigerator.</p>
         <div class="ar-controls-row">
+          <button type="button" id="ar-left-door" class="ar-btn">Left Door</button>
+          <button type="button" id="ar-right-door" class="ar-btn">Right Door</button>
+          <button type="button" id="ar-freezer" class="ar-btn">Freezer</button>
+        </div>
+        <div class="ar-controls-row">
           <button type="button" id="ar-reset" class="ar-btn">Reset View</button>
-          <button type="button" id="ar-remove" class="ar-btn">Remove</button>
           <button type="button" id="ar-apple-look" class="ar-btn">Apple AR</button>
           <button type="button" id="ar-exit" class="ar-btn ar-btn--danger">Exit AR</button>
         </div>

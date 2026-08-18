@@ -437,7 +437,15 @@ body {
   font-weight: 600;
 }
 
-/* AR controls */
+/* AR controls — hidden unless session is active */
+.ar-controls[hidden] {
+  display: none !important;
+}
+
+body.ar-session-active .ar-controls {
+  display: block;
+}
+
 .ar-controls {
   position: fixed;
   bottom: 0;
@@ -500,10 +508,6 @@ body.camera-ar-active {
   touch-action: none;
 }
 
-body.camera-ar-active #ar-remove {
-  display: none !important;
-}
-
 body.camera-ar-active .site-header,
 body.camera-ar-active .product-info,
 body.camera-ar-active .viewer-toolbar,
@@ -544,12 +548,10 @@ body.camera-ar-active #viewer-overlay {
   pointer-events: none;
 }
 
-body.camera-ar-active #ar-controls {
-  visibility: visible;
+body.ar-session-active .ar-controls {
   z-index: 100;
 }
 
-/* Responsive */
 @media (max-width: 960px) {
   .product-layout {
     grid-template-columns: 1fr;

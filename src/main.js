@@ -57,6 +57,7 @@ class App {
         this.refrigerator,
         this.interaction,
         this.modelLoader,
+        this.productViewer,
       );
       this.arManager.bindDomRotation(this.canvas);
 
@@ -66,7 +67,13 @@ class App {
       this.ui.syncDoorButtons();
       this.ui.elements.btnFinish.textContent = `Finish: ${FINISHES[0].name}`;
 
-      window.addEventListener('resize', () => this.sceneManager.resize());
+      window.addEventListener('resize', () => {
+        if (this.arManager?.arMode === 'camera-ar') {
+          this.arManager._resizeCameraARViewport();
+        } else {
+          this.sceneManager.resize();
+        }
+      });
       requestAnimationFrame(() => {
         this.sceneManager.resize();
         this.productViewer.resetCamera();
@@ -99,9 +106,13 @@ class App {
 
       if (this.arManager?.isActive) {
         this.arManager.onFrame(_timestamp, frame);
-        this.arManager.updateCameraAR();
+        if (this.arManager.arMode === 'camera-ar') {
+          this.arManager.updateCameraAR();
+          this.productViewer?.setEnabled(true);
+        } else {
+          this.productViewer?.setEnabled(false);
+        }
         this.interaction.enabled = false;
-        this.productViewer?.setEnabled(false);
       } else {
         this.productViewer?.update();
         this.interaction.enabled = true;
@@ -126,6 +137,7 @@ class App {
       await this.arManager.start();
     } catch (error) {
       console.error('AR session failed:', error);
+      this.arManager?.forceExit();
       const msg =
         error?.name === 'NotAllowedError'
           ? 'Camera permission denied. AR requires camera access.'

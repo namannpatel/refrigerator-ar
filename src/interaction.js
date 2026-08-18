@@ -11,6 +11,7 @@ export class InteractionHandler {
     this.pointer = new THREE.Vector2();
     this.enabled = true;
     this._pointerDown = false;
+    this._paused = false;
     this.suppressTap = false;
 
     canvas.addEventListener('pointerdown', this._onPointerDown);
@@ -21,8 +22,13 @@ export class InteractionHandler {
     this.camera = camera;
   }
 
+  setPaused(paused) {
+    this._paused = paused;
+    if (paused) this._pointerDown = false;
+  }
+
   _onPointerDown = (event) => {
-    if (!this.enabled) return;
+    if (!this.enabled || this._paused) return;
     this._pointerDown = true;
     this._pointerId = event.pointerId;
     this._downX = event.clientX;
@@ -30,7 +36,7 @@ export class InteractionHandler {
   };
 
   _onPointerUp = (event) => {
-    if (!this.enabled || !this._pointerDown) return;
+    if (!this.enabled || !this._pointerDown || this._paused) return;
     this._pointerDown = false;
     if (this.suppressTap) {
       this.suppressTap = false;
