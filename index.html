@@ -145,7 +145,26 @@
         <dl class="specs-detail-list" id="specs-detail-list"></dl>
       </dialog>
 
-      <!-- AR controls (only visible during an active AR session) -->
+      <!-- iOS room AR prep (doors before Apple Quick Look) -->
+      <dialog id="ios-ar-prep" class="ios-ar-prep" aria-labelledby="ios-ar-prep-title">
+        <div class="ios-ar-prep-inner">
+          <h2 id="ios-ar-prep-title">Place in your room</h2>
+          <p class="ios-ar-prep-note">
+            Set the doors here, then open AR to place the refrigerator on a real surface in your space.
+          </p>
+          <div class="ar-controls-row ios-ar-prep-doors">
+            <button type="button" id="ios-prep-left-door" class="ar-btn">Left Door</button>
+            <button type="button" id="ios-prep-right-door" class="ar-btn">Right Door</button>
+            <button type="button" id="ios-prep-freezer" class="ar-btn">Freezer</button>
+          </div>
+          <div class="ios-ar-prep-actions">
+            <button type="button" id="ios-ar-cancel" class="btn btn-secondary">Cancel</button>
+            <button type="button" id="ios-ar-place" class="btn btn-primary">Place in room</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- AR controls (WebXR immersive session overlay) -->
       <div id="ar-controls" class="ar-controls" role="toolbar" aria-label="AR controls" hidden>
         <p class="ar-hint" id="ar-hint">Point at a flat surface and tap to place the refrigerator.</p>
         <div class="ar-controls-row">

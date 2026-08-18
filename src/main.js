@@ -58,6 +58,7 @@ class App {
         this.interaction,
         this.modelLoader,
         this.productViewer,
+        () => this.ui.syncDoorButtons(),
       );
       this.arManager.bindDomRotation(this.canvas);
 

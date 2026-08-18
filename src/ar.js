@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { USDZExporter } from 'three/addons/exporters/USDZExporter.js';
 import { AR_POSTER_PATH, USDZ_PATH } from './config.js';
 
 const RETICLE_RING = 0.35;
@@ -23,12 +24,20 @@ function supportsQuickLookLink() {
 }
 
 export class ARSessionManager {
-  constructor(sceneManager, refrigerator, interactionHandler, modelLoader = null, productViewer = null) {
+  constructor(
+    sceneManager,
+    refrigerator,
+    interactionHandler,
+    modelLoader = null,
+    productViewer = null,
+    onSessionUIChange = null,
+  ) {
     this.sceneManager = sceneManager;
     this.refrigerator = refrigerator;
     this.interactionHandler = interactionHandler;
     this.modelLoader = modelLoader;
     this.productViewer = productViewer;
+    this.onSessionUIChange = onSessionUIChange;
     this.canvas = sceneManager.canvas;
     this.renderer = sceneManager.renderer;
     this.scene = sceneManager.scene;
@@ -140,13 +149,13 @@ export class ARSessionManager {
     }
 
     if (quickLook) {
-      this.arMode = 'camera-ar';
+      this.arMode = 'quick-look';
       return {
         supported: true,
-        mode: 'camera-ar',
-        reason: 'camera-ar',
+        mode: 'quick-look',
+        reason: 'quick-look',
         message:
-          'Tap View in AR. Use the door buttons below the model, or pinch and drag to move the view.',
+          'Tap View in AR to place the fridge in your room. Set doors with the buttons above first; on Android, door buttons also work during AR.',
       };
     }
 
@@ -187,12 +196,47 @@ export class ARSessionManager {
     };
   }
 
+  _setArStatus(message) {
+    const el = document.getElementById('ar-status');
+    if (el) el.textContent = message;
+  }
+
   async startQuickLook() {
     if (this.arMode === 'camera-ar' || this._cameraARVideo || this._cameraARStream) {
       this._endCameraAR();
     }
 
-    const usdzUrl = new URL(USDZ_PATH, window.location.href).href;
+    this._setArStatus('Preparing AR model for your room…');
+
+    let usdzUrl = new URL(USDZ_PATH, window.location.href).href;
+    let revokeUrl = null;
+
+    try {
+      this.refrigerator.root.updateMatrixWorld(true);
+      for (let i = 0; i < 5; i++) {
+        this.refrigerator.update(0.05);
+      }
+
+      const exporter = new USDZExporter();
+      const usdz = await exporter.parseAsync(this.refrigerator.root, {
+        quickLookCompatible: true,
+        includeAnchoringProperties: true,
+        maxTextureSize: 2048,
+        ar: {
+          anchoring: { type: 'plane' },
+          planeAnchoring: { alignment: 'horizontal' },
+        },
+      });
+
+      if (usdz && usdz.byteLength > 0) {
+        const blob = new Blob([usdz], { type: 'model/vnd.usdz+zip' });
+        usdzUrl = URL.createObjectURL(blob);
+        revokeUrl = usdzUrl;
+      }
+    } catch (err) {
+      console.warn('Runtime USDZ export failed, using bundled file:', err);
+    }
+
     const posterUrl = new URL(AR_POSTER_PATH, window.location.href).href;
 
     const anchor = document.createElement('a');
@@ -217,7 +261,14 @@ export class ARSessionManager {
     });
 
     anchor.click();
-    window.setTimeout(() => anchor.remove(), 1000);
+    window.setTimeout(() => {
+      anchor.remove();
+      if (revokeUrl) URL.revokeObjectURL(revokeUrl);
+    }, 2000);
+
+    this._setArStatus(
+      'AR opened in your room. Door positions match what you set on the page before entering AR.',
+    );
   }
 
   allowsScreenInteraction() {
@@ -313,7 +364,7 @@ export class ARSessionManager {
       }
 
       if (isIOSDevice() && supportsQuickLookLink()) {
-        await this._startCameraAR();
+        await this._promptIOSARPrep();
         return;
       }
 
@@ -345,15 +396,64 @@ export class ARSessionManager {
   }
 
   async _startWebXR() {
-    const session = await navigator.xr.requestSession('immersive-ar', {
+    const arControls = document.getElementById('ar-controls');
+    const sessionOptions = {
       requiredFeatures: ['hit-test'],
       optionalFeatures: ['local-floor', 'dom-overlay', 'transient-pointer'],
-      domOverlay: { root: document.getElementById('ar-controls') },
-    });
+    };
+
+    let session;
+    try {
+      const withOverlay = { ...sessionOptions };
+      if (arControls) withOverlay.domOverlay = { root: arControls };
+      session = await navigator.xr.requestSession('immersive-ar', withOverlay);
+    } catch (err) {
+      console.warn('WebXR with dom-overlay failed, retrying without overlay:', err);
+      session = await navigator.xr.requestSession('immersive-ar', sessionOptions);
+    }
 
     await this.renderer.xr.setSession(session);
     this.arMode = 'webxr';
     this.isActive = true;
+  }
+
+  async _promptIOSARPrep() {
+    const dialog = document.getElementById('ios-ar-prep');
+    if (!dialog) {
+      await this.startQuickLook();
+      return;
+    }
+
+    this.onSessionUIChange?.();
+
+    await new Promise((resolve) => {
+      const placeBtn = document.getElementById('ios-ar-place');
+      const cancelBtn = document.getElementById('ios-ar-cancel');
+
+      const cleanup = () => {
+        placeBtn?.removeEventListener('click', onPlace);
+        cancelBtn?.removeEventListener('click', onCancel);
+        if (dialog.open) dialog.close();
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve();
+      };
+
+      const onPlace = async () => {
+        cleanup();
+        try {
+          await this.startQuickLook();
+        } finally {
+          resolve();
+        }
+      };
+
+      placeBtn?.addEventListener('click', onPlace);
+      cancelBtn?.addEventListener('click', onCancel);
+      dialog.showModal();
+    });
   }
 
   async _startCameraAR() {
@@ -496,7 +596,8 @@ export class ARSessionManager {
     this.reticle.visible = true;
 
     this._setARSessionUI(true);
-    this._updateHint('Tap a surface to place. Then use door buttons or tap the model.');
+    this._updateHint('Tap a surface to place. Use door buttons below to open or close.');
+    this.onSessionUIChange?.();
 
     if (this.modelLoader) {
       this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);

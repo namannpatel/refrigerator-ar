@@ -40,6 +40,9 @@ export class UIManager {
       arFreezer: document.getElementById('ar-freezer'),
       arReset: document.getElementById('ar-reset'),
       arExit: document.getElementById('ar-exit'),
+      iosPrepLeftDoor: document.getElementById('ios-prep-left-door'),
+      iosPrepRightDoor: document.getElementById('ios-prep-right-door'),
+      iosPrepFreezer: document.getElementById('ios-prep-freezer'),
     };
 
     this._bindEvents();
@@ -85,6 +88,15 @@ export class UIManager {
     if (this.elements.arFreezer) {
       this.elements.arFreezer.addEventListener('click', () => this._toggleDoor('freezer'));
     }
+    if (this.elements.iosPrepLeftDoor) {
+      this.elements.iosPrepLeftDoor.addEventListener('click', () => this._toggleDoor('left'));
+    }
+    if (this.elements.iosPrepRightDoor) {
+      this.elements.iosPrepRightDoor.addEventListener('click', () => this._toggleDoor('right'));
+    }
+    if (this.elements.iosPrepFreezer) {
+      this.elements.iosPrepFreezer.addEventListener('click', () => this._toggleDoor('freezer'));
+    }
     this.elements.arReset.addEventListener('click', () => this.app.arManager?.resetPosition());
     this.elements.arExit.addEventListener('click', () => this.app.arManager?.exit());
   }
@@ -124,9 +136,11 @@ export class UIManager {
     this.elements.btnArSecondary.disabled = false;
 
     const modeNote =
-      mode === 'camera-ar'
-        ? ' Pinch to zoom and drag to rotate in AR.'
-        : '';
+      mode === 'quick-look'
+        ? ' On iPhone, set doors with the toolbar buttons before View in AR.'
+        : mode === 'webxr'
+          ? ' Door buttons appear at the bottom while you are in AR.'
+          : '';
     this.elements.arStatus.textContent = `${message || 'AR available. Tap View in AR on your phone (HTTPS required).'}${modeNote}`;
   }
 
@@ -180,5 +194,8 @@ export class UIManager {
     if (this.elements.arLeftDoor) this.elements.arLeftDoor.textContent = leftLabel;
     if (this.elements.arRightDoor) this.elements.arRightDoor.textContent = rightLabel;
     if (this.elements.arFreezer) this.elements.arFreezer.textContent = freezerLabel;
+    if (this.elements.iosPrepLeftDoor) this.elements.iosPrepLeftDoor.textContent = leftLabel;
+    if (this.elements.iosPrepRightDoor) this.elements.iosPrepRightDoor.textContent = rightLabel;
+    if (this.elements.iosPrepFreezer) this.elements.iosPrepFreezer.textContent = freezerLabel;
   }
 }

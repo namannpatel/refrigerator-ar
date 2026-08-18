@@ -437,6 +437,49 @@ body {
   font-weight: 600;
 }
 
+.ios-ar-prep {
+  border: none;
+  border-radius: 16px;
+  padding: 0;
+  max-width: min(92vw, 420px);
+  background: var(--surface, #111827);
+  color: #fff;
+}
+
+.ios-ar-prep::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.ios-ar-prep-inner {
+  padding: 1.25rem 1.25rem 1rem;
+}
+
+.ios-ar-prep-inner h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
+
+.ios-ar-prep-note {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.45;
+}
+
+.ios-ar-prep-doors {
+  margin-bottom: 1rem;
+}
+
+.ios-ar-prep-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: stretch;
+}
+
+.ios-ar-prep-actions .btn {
+  flex: 1;
+}
+
 /* AR controls — hidden unless session is active */
 .ar-controls[hidden] {
   display: none !important;
