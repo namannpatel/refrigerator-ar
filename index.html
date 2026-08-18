@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Interactive 3D Samsung French-door refrigerator with WebXR AR placement." />
+    <title>Samsung Refrigerator — 3D & AR Experience</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="site-header" role="banner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">◆</span>
+          <span class="brand-name">Premium Appliance</span>
+        </div>
+        <nav class="site-nav" aria-label="Product navigation">
+          <a href="#" class="nav-link">Refrigerators</a>
+          <a href="#" class="nav-link">Support</a>
+        </nav>
+      </header>
+
+      <main class="product-layout" id="main-content">
+        <section class="viewer-panel" aria-label="3D product viewer">
+          <div id="viewer-container" class="viewer-container" tabindex="0" aria-label="Interactive 3D refrigerator viewer">
+            <canvas id="three-canvas"></canvas>
+            <div id="viewer-overlay" class="viewer-overlay">
+              <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
+                <div class="loading-spinner" aria-hidden="true"></div>
+                <p class="loading-text">Loading refrigerator model…</p>
+                <div class="loading-progress-bar" aria-hidden="true">
+                  <div id="loading-progress" class="loading-progress"></div>
+                </div>
+                <p id="loading-percent" class="loading-percent">0%</p>
+              </div>
+              <div id="error-screen" class="error-screen hidden" role="alert">
+                <p id="error-message"></p>
+                <button type="button" id="error-retry" class="btn btn-secondary">Retry</button>
+              </div>
+              <div id="dispenser-feedback" class="dispenser-feedback hidden" role="status" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="viewer-toolbar" role="toolbar" aria-label="3D viewer controls">
+            <button type="button" id="btn-reset-view" class="toolbar-btn" title="Reset camera view">Reset View</button>
+            <button type="button" id="btn-left-door" class="toolbar-btn" title="Toggle left door">Left Door</button>
+            <button type="button" id="btn-right-door" class="toolbar-btn" title="Toggle right door">Right Door</button>
+            <button type="button" id="btn-freezer" class="toolbar-btn" title="Toggle freezer drawer">Freezer</button>
+            <button type="button" id="btn-specs" class="toolbar-btn" title="View specifications">Specifications</button>
+            <button type="button" id="btn-finish" class="toolbar-btn" title="Change finish">Change Finish</button>
+            <button type="button" id="btn-ar" class="toolbar-btn toolbar-btn--ar" title="View in augmented reality">View in AR</button>
+          </div>
+          <p id="ar-status" class="ar-status" role="status"></p>
+        </section>
+
+        <aside class="product-info" aria-label="Product information">
+          <p class="product-category">French-door refrigerator</p>
+          <h1 class="product-title">Samsung Refrigerator</h1>
+          <p class="product-model">Model reference: RF263BEAE <span class="demo-label">(demo showcase)</span></p>
+          <p class="product-price">
+            <span class="price-value">$2,499</span>
+            <span class="demo-label">Demo price — not an official offer</span>
+          </p>
+
+          <div class="feature-highlights">
+            <h2 class="section-heading">Highlights</h2>
+            <ul class="feature-list">
+              <li>Twin cooling zones with independent temperature control</li>
+              <li>External water and ice dispenser</li>
+              <li>LED interior lighting</li>
+              <li>Spill-proof glass shelves</li>
+              <li>Energy-efficient inverter compressor <span class="demo-label">(demo)</span></li>
+            </ul>
+          </div>
+
+          <div class="spec-summary">
+            <h2 class="section-heading">At a glance <span class="demo-label">(placeholder specs)</span></h2>
+            <dl class="spec-grid">
+              <div class="spec-item">
+                <dt>Width</dt>
+                <dd>35.75 in (91 cm)</dd>
+              </div>
+              <div class="spec-item">
+                <dt>Depth</dt>
+                <dd>35.63 in (91 cm)</dd>
+              </div>
+              <div class="spec-item">
+                <dt>Height</dt>
+                <dd>70 in (178 cm)</dd>
+              </div>
+              <div class="spec-item">
+                <dt>Capacity</dt>
+                <dd>~25 cu ft (demo)</dd>
+              </div>
+              <div class="spec-item">
+                <dt>Energy</dt>
+                <dd>Energy Star class (demo label)</dd>
+              </div>
+              <div class="spec-item">
+                <dt>Cooling</dt>
+                <dd>3°C fridge / -18°C freezer (simulated)</dd>
+              </div>
+            </dl>
+          </div>
+
+          <button type="button" id="btn-ar-secondary" class="btn btn-primary btn-ar-cta">View in AR</button>
+        </aside>
+      </main>
+
+      <!-- Temperature control panel -->
+      <dialog id="temp-panel" class="temp-panel" aria-labelledby="temp-panel-title">
+        <div class="temp-panel-header">
+          <h2 id="temp-panel-title">Temperature Controls</h2>
+          <button type="button" id="temp-panel-close" class="icon-btn" aria-label="Close temperature panel">✕</button>
+        </div>
+        <p class="temp-panel-note">Visual simulation only — not connected to real hardware.</p>
+        <div class="temp-control">
+          <label for="fridge-temp">Refrigerator</label>
+          <div class="temp-adjust">
+            <button type="button" id="fridge-temp-down" class="temp-btn" aria-label="Decrease refrigerator temperature">−</button>
+            <span id="fridge-temp-value" class="temp-value">3°C</span>
+            <button type="button" id="fridge-temp-up" class="temp-btn" aria-label="Increase refrigerator temperature">+</button>
+          </div>
+        </div>
+        <div class="temp-control">
+          <label for="freezer-temp">Freezer</label>
+          <div class="temp-adjust">
+            <button type="button" id="freezer-temp-down" class="temp-btn" aria-label="Decrease freezer temperature">−</button>
+            <span id="freezer-temp-value" class="temp-value">-18°C</span>
+            <button type="button" id="freezer-temp-up" class="temp-btn" aria-label="Increase freezer temperature">+</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- Specifications modal -->
+      <dialog id="specs-modal" class="specs-modal" aria-labelledby="specs-modal-title">
+        <div class="specs-modal-header">
+          <h2 id="specs-modal-title">Product Specifications</h2>
+          <button type="button" id="specs-modal-close" class="icon-btn" aria-label="Close specifications">✕</button>
+        </div>
+        <p class="demo-label specs-demo-note">All values below are demo/placeholder data for this showcase.</p>
+        <dl class="specs-detail-list" id="specs-detail-list"></dl>
+      </dialog>
+
+      <!-- AR controls overlay -->
+      <div id="ar-controls" class="ar-controls hidden" role="toolbar" aria-label="AR controls">
+        <p class="ar-hint" id="ar-hint">Point at a flat surface and tap to place the refrigerator.</p>
+        <div class="ar-controls-row">
+          <button type="button" id="ar-mode-move" class="ar-btn ar-btn--active" data-mode="move">Move</button>
+          <button type="button" id="ar-mode-rotate" class="ar-btn" data-mode="rotate">Rotate</button>
+          <button type="button" id="ar-reset" class="ar-btn">Reset Position</button>
+          <button type="button" id="ar-remove" class="ar-btn">Remove</button>
+          <button type="button" id="ar-exit" class="ar-btn ar-btn--danger">Exit AR</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
