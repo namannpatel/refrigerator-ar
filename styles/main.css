@@ -499,13 +499,27 @@ body.camera-ar-active {
   overflow: hidden;
 }
 
-body.camera-ar-active #app > .site-header,
-body.camera-ar-active #app > main {
+body.camera-ar-active .site-header,
+body.camera-ar-active .product-info,
+body.camera-ar-active .viewer-toolbar,
+body.camera-ar-active .ar-status {
   visibility: hidden;
   pointer-events: none;
 }
 
-body.camera-ar-active .viewer-panel,
+body.camera-ar-active .viewer-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 2;
+  visibility: visible !important;
+}
+
 body.camera-ar-active .viewer-container,
 body.camera-ar-active #three-canvas {
   position: fixed !important;
@@ -515,7 +529,13 @@ body.camera-ar-active #three-canvas {
   max-height: none !important;
   min-height: 0 !important;
   margin: 0 !important;
+  visibility: visible !important;
   z-index: 2;
+}
+
+body.camera-ar-active #viewer-overlay {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 body.camera-ar-active #ar-controls {

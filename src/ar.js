@@ -281,6 +281,7 @@ export class ARSessionManager {
     this.sceneManager.configureForAR(true);
     this.scene.background = null;
     this.renderer.setClearColor(0x000000, 0);
+    this.renderer.setClearAlpha(0);
 
     this._savedCameraAR = {
       position: this.camera.position.clone(),
@@ -289,13 +290,18 @@ export class ARSessionManager {
 
     const height = this.refrigerator.worldHeight || 1.78;
     const midY = height * 0.45;
-    this.camera.position.set(0, midY, height * 1.25);
+    const viewDist = height * 0.95;
+    this.camera.position.set(0, midY, viewDist);
     this.camera.lookAt(0, midY, 0);
+    this.camera.near = 0.05;
+    this.camera.far = 50;
+    this.camera.updateProjectionMatrix();
 
     this.sceneManager.productRoot.add(this.refrigerator.root);
     this.refrigerator.root.position.set(0, 0, 0);
     this.refrigerator.root.rotation.set(0, 0, 0);
     this.refrigerator.root.visible = true;
+    this.refrigerator.root.updateMatrixWorld(true);
     this.isPlaced = true;
     this.isActive = true;
     this.arMode = 'camera-ar';
@@ -310,8 +316,21 @@ export class ARSessionManager {
     }
 
     document.getElementById('ar-controls').classList.remove('hidden');
-    this._updateHint('Tap a door or the freezer on the model to open it.');
-    this.sceneManager.resize();
+    this._updateHint('Drag to move or rotate the refrigerator.');
+    this._resizeCameraARViewport();
+    this._onCameraARResize = () => this._resizeCameraARViewport();
+    window.addEventListener('resize', this._onCameraARResize);
+  }
+
+  _resizeCameraARViewport() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    if (w === 0 || h === 0) return;
+
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(w, h, false);
   }
 
   _endCameraAR() {
@@ -324,6 +343,8 @@ export class ARSessionManager {
       this._cameraARVideo = null;
     }
     document.body.classList.remove('camera-ar-active');
+    window.removeEventListener('resize', this._onCameraARResize);
+    this._onCameraARResize = null;
 
     if (this._savedCameraAR) {
       this.camera.position.copy(this._savedCameraAR.position);
@@ -332,6 +353,7 @@ export class ARSessionManager {
     }
 
     this.renderer.setClearColor(0x000000, 1);
+    this.renderer.setClearAlpha(1);
     this.sceneManager.productRoot.add(this.refrigerator.root);
     this.refrigerator.root.position.set(0, 0, 0);
     this.refrigerator.root.rotation.set(0, 0, 0);
@@ -531,7 +553,7 @@ export class ARSessionManager {
     this._placementQuaternion.copy(this.refrigerator.root.quaternion);
     this._startRotationY = this.refrigerator.root.rotation.y;
     this.reticle.visible = false;
-    this._updateHint('Tap doors or freezer to open. Use buttons below to move or rotate.');
+    this._updateHint('Drag to move or rotate. Tap a surface to reposition.');
 
     if (this.modelLoader) {
       this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);

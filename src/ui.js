@@ -37,9 +37,6 @@ export class UIManager {
       dispenserFeedback: document.getElementById('dispenser-feedback'),
       arModeMove: document.getElementById('ar-mode-move'),
       arModeRotate: document.getElementById('ar-mode-rotate'),
-      arLeftDoor: document.getElementById('ar-left-door'),
-      arRightDoor: document.getElementById('ar-right-door'),
-      arFreezer: document.getElementById('ar-freezer'),
       arReset: document.getElementById('ar-reset'),
       arRemove: document.getElementById('ar-remove'),
       arExit: document.getElementById('ar-exit'),
@@ -82,9 +79,6 @@ export class UIManager {
 
     this.elements.arModeMove.addEventListener('click', () => this.setArMode('move'));
     this.elements.arModeRotate.addEventListener('click', () => this.setArMode('rotate'));
-    this.elements.arLeftDoor.addEventListener('click', () => this._toggleDoor('left'));
-    this.elements.arRightDoor.addEventListener('click', () => this._toggleDoor('right'));
-    this.elements.arFreezer.addEventListener('click', () => this._toggleDoor('freezer'));
     this.elements.arReset.addEventListener('click', () => this.app.arManager?.resetPosition());
     this.elements.arRemove.addEventListener('click', () => this.app.arManager?.removeModel());
     this.elements.arExit.addEventListener('click', () => this.app.arManager?.exit());
@@ -181,10 +175,6 @@ export class UIManager {
     this.elements.btnLeftDoor.textContent = leftLabel;
     this.elements.btnRightDoor.textContent = rightLabel;
     this.elements.btnFreezer.textContent = freezerLabel;
-
-    if (this.elements.arLeftDoor) this.elements.arLeftDoor.textContent = leftLabel;
-    if (this.elements.arRightDoor) this.elements.arRightDoor.textContent = rightLabel;
-    if (this.elements.arFreezer) this.elements.arFreezer.textContent = freezerLabel;
   }
 
   setArMode(mode) {
