@@ -308,7 +308,6 @@ export class ARSessionManager {
     this.isPlaced = true;
     this.isActive = true;
     this.arMode = 'camera-ar';
-    this.mode = 'move';
 
     this._placementPosition.set(0, 0, 0);
     this._placementQuaternion.set(0, 0, 0, 1);
@@ -322,7 +321,7 @@ export class ARSessionManager {
     this._setupCameraARControls(height, midY);
 
     document.getElementById('ar-controls').classList.remove('hidden');
-    this._updateHint('Pinch to zoom. Drag with one finger to rotate. Two fingers to pan.');
+    this._updateHint('Pinch to zoom. Drag to rotate. Two fingers to move.');
     this._onCameraARResize = () => this._resizeCameraARViewport();
     window.addEventListener('resize', this._onCameraARResize);
   }
@@ -470,7 +469,7 @@ export class ARSessionManager {
       const dx = event.clientX - this._canvasDownX;
       const dy = event.clientY - this._canvasDownY;
       if (Math.hypot(dx, dy) > 12) return;
-      if (this.isPlaced && this.mode === 'rotate' && this._touchStart) return;
+      if (this.isPlaced && this._touchStart) return;
 
       this._handleCanvasTap(event.clientX, event.clientY);
     };
@@ -521,9 +520,7 @@ export class ARSessionManager {
 
     if (this._tryInteractFromSelect(event)) return;
 
-    if (this.mode === 'move') {
-      this._placeAtReticle();
-    }
+    this._placeAtReticle();
   }
 
   _getInteractionCamera() {
@@ -556,7 +553,7 @@ export class ARSessionManager {
       return;
     }
 
-    if (this.mode === 'move' && this.reticle.visible) {
+    if (this.reticle.visible) {
       this._placeAtReticle();
     }
   }
@@ -606,7 +603,7 @@ export class ARSessionManager {
     this._placementQuaternion.copy(this.refrigerator.root.quaternion);
     this._startRotationY = this.refrigerator.root.rotation.y;
     this.reticle.visible = false;
-    this._updateHint('Drag to move or rotate. Tap a surface to reposition.');
+    this._updateHint('Pinch to zoom. Drag to rotate. Tap a surface to reposition.');
 
     if (this.modelLoader) {
       this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
@@ -628,11 +625,6 @@ export class ARSessionManager {
 
   setMode(mode) {
     this.mode = mode;
-    this._updateHint(
-      mode === 'rotate'
-        ? 'Drag horizontally to rotate the refrigerator.'
-        : 'Tap a door, freezer, or surface to interact.',
-    );
   }
 
   resetPosition() {
@@ -692,7 +684,7 @@ export class ARSessionManager {
           if (!this.isPlaced) {
             this.reticle.visible = true;
             this.reticle.matrix.copy(this._lastHitMatrix);
-          } else if (this.mode === 'move') {
+          } else if (this.isPlaced) {
             this.reticle.visible = true;
             this.reticle.matrix.copy(this._lastHitMatrix);
           }
@@ -704,7 +696,7 @@ export class ARSessionManager {
   }
 
   _handleTouchRotation(frame) {
-    if (!this.isPlaced || this.mode !== 'rotate') return;
+    if (!this.isPlaced) return;
 
     const session = frame.session;
     if (!session.inputSources) return;
@@ -719,7 +711,7 @@ export class ARSessionManager {
   }
 
   handlePointerMove(clientX, clientY) {
-    if (!this.isActive || !this.isPlaced || this.mode !== 'rotate') return;
+    if (!this.isWebXRSession() || !this.isPlaced) return;
 
     if (!this._touchStart) {
       this._touchStart = { x: clientX, y: clientY };
@@ -738,7 +730,7 @@ export class ARSessionManager {
 
   bindDomRotation(canvas) {
     canvas.addEventListener('pointerdown', (e) => {
-      if (this.isActive && this.isPlaced && this.mode === 'rotate') {
+      if (this.isWebXRSession() && this.isPlaced) {
         this._touchStart = { x: e.clientX, y: e.clientY };
         this._startRotationY = this.refrigerator.root.rotation.y;
         if (this.interactionHandler) this.interactionHandler.suppressTap = true;

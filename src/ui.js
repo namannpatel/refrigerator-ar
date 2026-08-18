@@ -35,8 +35,6 @@ export class UIManager {
       specsModalClose: document.getElementById('specs-modal-close'),
       specsDetailList: document.getElementById('specs-detail-list'),
       dispenserFeedback: document.getElementById('dispenser-feedback'),
-      arModeMove: document.getElementById('ar-mode-move'),
-      arModeRotate: document.getElementById('ar-mode-rotate'),
       arReset: document.getElementById('ar-reset'),
       arRemove: document.getElementById('ar-remove'),
       arExit: document.getElementById('ar-exit'),
@@ -77,8 +75,6 @@ export class UIManager {
     this.elements.freezerTempUp.addEventListener('click', () => this.adjustTemp('freezer', 1));
     this.elements.freezerTempDown.addEventListener('click', () => this.adjustTemp('freezer', -1));
 
-    this.elements.arModeMove.addEventListener('click', () => this.setArMode('move'));
-    this.elements.arModeRotate.addEventListener('click', () => this.setArMode('rotate'));
     this.elements.arReset.addEventListener('click', () => this.app.arManager?.resetPosition());
     this.elements.arRemove.addEventListener('click', () => this.app.arManager?.removeModel());
     this.elements.arExit.addEventListener('click', () => this.app.arManager?.exit());
@@ -175,11 +171,5 @@ export class UIManager {
     this.elements.btnLeftDoor.textContent = leftLabel;
     this.elements.btnRightDoor.textContent = rightLabel;
     this.elements.btnFreezer.textContent = freezerLabel;
-  }
-
-  setArMode(mode) {
-    this.app.arManager?.setMode(mode);
-    this.elements.arModeMove.classList.toggle('ar-btn--active', mode === 'move');
-    this.elements.arModeRotate.classList.toggle('ar-btn--active', mode === 'rotate');
   }
 }
