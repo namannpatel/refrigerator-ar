@@ -10,7 +10,7 @@ export const INCH_TO_METER = 0.0254;
 export const TARGET_HEIGHT_INCHES = 70;
 
 /** Vite `base` prefix — required for GitHub Pages project URLs (/repo-name/). */
-const assetBase = import.meta.env.BASE_URL;
+const assetBase = import.meta.env?.BASE_URL ?? '/';
 
 export const MODEL_PATH = `${assetBase}models/Samsung_Fridge.glb`;
 
@@ -30,35 +30,57 @@ export const TEXTURES = {
   height: 'Samsung_Fridge_low_Samsung_Fridge_Height.jpg',
 };
 
-/** Exact GLB mesh names → assembly group (from obj2gltf export). */
+/** Exact GLB mesh names → assembly group. Supports both export suffix styles (_1 or none). */
 export const MESH_GROUPS = {
   chassis: [
+    'Body',
     'Body_1',
+    'Interior_Support',
     'Interior_Support_1',
+    'Interior_Shelves',
     'Interior_Shelves_1',
+    'Interior_IceMaker',
     'Interior_IceMaker_1',
+    'Interior_Drawner',
+    'Interior_Drawner_1',
     'Interior_Drawner_2',
+    'Left_Door_Support',
     'Left_Door_Support_1',
+    'Right_Door_Support',
     'Right_Door_Support_1',
+    'Interior_Light_Top',
     'Interior_Light_Top_1',
+    'Interior_Light_Left',
     'Interior_Light_Left_1',
+    'Interior_Light_Right',
     'Interior_Light_Right_1',
   ],
   leftDoor: [
+    'Left_Door',
     'Left_Door_1',
+    'Left_Door_Hinge',
     'Left_Door_Hinge_1',
+    'Left_Door_Handle',
     'Left_Door_Handle_1',
+    'Left_Door_Shelves',
     'Left_Door_Shelves_1',
   ],
   rightDoor: [
+    'Right_Door',
     'Right_Door_1',
+    'Right_Door_Hinge',
     'Right_Door_Hinge_1',
+    'Right_Door_Handle',
     'Right_Door_Handle_1',
+    'Right_Door_Shelves',
     'Right_Door_Shelves_1',
   ],
   freezer: [
+    'Refregerator',
     'Refregerator_1',
+    'Refregerator_Support',
     'Refregerator_Support_1',
+    'Refregerator_Handle',
     'Refregerator_Handle_1',
     'Interior_Drawner_3',
   ],
@@ -69,6 +91,14 @@ export function getMeshGroup(meshName) {
   for (const [group, names] of Object.entries(MESH_GROUPS)) {
     if (names.includes(normalized)) return group;
   }
+
+  const lower = normalized.toLowerCase();
+  if (lower.includes('refregerator') || lower === 'interior_drawner_3') {
+    return 'freezer';
+  }
+  if (lower.startsWith('left_door') && !lower.includes('support')) return 'leftDoor';
+  if (lower.startsWith('right_door') && !lower.includes('support')) return 'rightDoor';
+
   return 'chassis';
 }
 
@@ -81,14 +111,14 @@ export const PART_PATTERNS = {
   interiorIceMaker: ['interior_icemaker'],
   leftDoorSupport: ['left_door_support'],
   rightDoorSupport: ['right_door_support'],
-  freezerBody: ['refregerator_1'],
+  freezerBody: ['refregerator'],
   freezerSupport: ['refregerator_support'],
   freezerHandle: ['refregerator_handle'],
-  leftDoor: ['left_door_1'],
+  leftDoor: ['left_door'],
   leftDoorHinge: ['left_door_hinge'],
   leftDoorHandle: ['left_door_handle'],
   leftDoorShelves: ['left_door_shelves'],
-  rightDoor: ['right_door_1'],
+  rightDoor: ['right_door'],
   rightDoorHinge: ['right_door_hinge'],
   rightDoorHandle: ['right_door_handle'],
   rightDoorShelves: ['right_door_shelves'],
@@ -98,10 +128,18 @@ export const PART_PATTERNS = {
 };
 
 export const ANIMATION = {
-  doorOpenAngle: Math.PI * 0.42,
+  /** Closed = ±90° (model doors are authored open at 0°). */
+  doorClosedLeftAngle: Math.PI / 2,
+  doorClosedRightAngle: -Math.PI / 2,
+  doorOpenLeftAngle: 0,
+  doorOpenRightAngle: 0,
+  /** Nudge closed doors toward center (model units / inches). */
+  doorClosedInsetX: 0.9,
+  doorClosedAngleInset: 0.05,
   doorDuration: 0.85,
-  freezerSlideDistance: 14,
-  freezerSlideSign: 1,
+  /** Slide distance in model units (inches). Closed = −distance − inset, open = +distance. */
+  freezerSlideDistance: 8,
+  freezerCloseInset: 9,
   freezerDuration: 0.9,
   easing: 0.12,
 };

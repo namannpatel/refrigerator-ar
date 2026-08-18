@@ -36,6 +36,7 @@ class App {
 
       this.refrigerator.buildFromGLTF(gltf.scene);
       this.modelLoader.applyMaterials(this.refrigerator.root, textures);
+      this.refrigerator._ensureClosedState();
       this.ui.setLoadingProgress(1);
       this.ui.hideLoading();
 
@@ -51,7 +52,12 @@ class App {
         },
       );
 
-      this.arManager = new ARSessionManager(this.sceneManager, this.refrigerator, this.interaction);
+      this.arManager = new ARSessionManager(
+        this.sceneManager,
+        this.refrigerator,
+        this.interaction,
+        this.modelLoader,
+      );
       this.arManager.bindDomRotation(this.canvas);
 
       const arStatus = await this.arManager.getAvailability();
@@ -64,6 +70,8 @@ class App {
       requestAnimationFrame(() => {
         this.sceneManager.resize();
         this.productViewer.resetCamera();
+        this.refrigerator._ensureClosedState();
+        this.ui.syncDoorButtons();
       });
 
       this._running = true;
@@ -85,18 +93,19 @@ class App {
     if (!this._running) return;
 
     const delta = Math.min(this.clock.getDelta(), 0.05);
-    if (delta <= 0) return;
 
-    this.refrigerator.update(delta);
+    if (delta > 0) {
+      this.refrigerator.update(delta);
 
-    if (this.arManager?.isActive) {
-      this.arManager.onFrame(_timestamp, frame);
-      this.interaction.enabled = false;
-      this.productViewer?.setEnabled(false);
-    } else {
-      this.productViewer?.update();
-      this.interaction.enabled = true;
-      this.productViewer?.setEnabled(true);
+      if (this.arManager?.isActive) {
+        this.arManager.onFrame(_timestamp, frame);
+        this.interaction.enabled = false;
+        this.productViewer?.setEnabled(false);
+      } else {
+        this.productViewer?.update();
+        this.interaction.enabled = true;
+        this.productViewer?.setEnabled(true);
+      }
     }
 
     this.sceneManager.render();

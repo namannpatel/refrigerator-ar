@@ -127,7 +127,7 @@ export class Refrigerator {
   }
 
   /**
-   * Place pivot on hinge edge; re-attach meshes so they keep world position but rotate correctly.
+   * Place pivot on the door hinge (inner edge / hinge mesh) so rotation swings the full door assembly.
    */
   _setupHingePivot(pivot, side) {
     if (pivot.children.length === 0) return;
@@ -136,17 +136,27 @@ export class Refrigerator {
     const meshes = pivot.children.map((child) => child);
 
     pivot.updateMatrixWorld(true);
-    const box = this._boxFromChildren(pivot);
-    if (!Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) return;
 
-    const hinge = new THREE.Vector3(
-      side === 'left' ? box.min.x : box.max.x,
-      (box.min.y + box.max.y) * 0.5,
-      (box.min.z + box.max.z) * 0.5,
-    );
+    const hingeMesh = meshes.find((mesh) => /hinge/i.test(mesh.name));
+    const hingeWorld = new THREE.Vector3();
+
+    if (hingeMesh) {
+      new THREE.Box3().setFromObject(hingeMesh).getCenter(hingeWorld);
+    } else {
+      const box = new THREE.Box3();
+      meshes.forEach((mesh) => box.expandByObject(mesh));
+      if (!Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) return;
+
+      hingeWorld.set(
+        side === 'left' ? box.max.x : box.min.x,
+        (box.min.y + box.max.y) * 0.5,
+        (box.min.z + box.max.z) * 0.5,
+      );
+    }
 
     meshes.forEach((mesh) => assembly.attach(mesh));
-    pivot.position.copy(hinge);
+    assembly.updateMatrixWorld(true);
+    pivot.position.copy(assembly.worldToLocal(hingeWorld));
     meshes.forEach((mesh) => pivot.attach(mesh));
     pivot.updateMatrixWorld(true);
   }
@@ -178,16 +188,18 @@ export class Refrigerator {
     this.state.leftDoorOpen = false;
     this.state.rightDoorOpen = false;
     this.state.freezerOpen = false;
-    this.state.leftDoorAngle = 0;
-    this.state.rightDoorAngle = 0;
-    this.state.freezerOffset = 0;
-    this.state.leftDoorTarget = 0;
-    this.state.rightDoorTarget = 0;
-    this.state.freezerTarget = 0;
+    this.state.leftDoorAngle = this._leftClosedAngle();
+    this.state.rightDoorAngle = this._rightClosedAngle();
+    this.state.freezerOffset = this._freezerClosedOffset();
+    this.state.leftDoorTarget = this._leftClosedAngle();
+    this.state.rightDoorTarget = this._rightClosedAngle();
+    this.state.freezerTarget = this._freezerClosedOffset();
 
-    this.leftDoorPivot.rotation.set(0, 0, 0);
-    this.rightDoorPivot.rotation.set(0, 0, 0);
-    this.freezerPivot.position.copy(this._freezerBaseLocal);
+    this.leftDoorPivot.rotation.set(0, this.state.leftDoorAngle, 0);
+    this.rightDoorPivot.rotation.set(0, this.state.rightDoorAngle, 0);
+    this.leftDoorAssembly.position.x = ANIMATION.doorClosedInsetX;
+    this.rightDoorAssembly.position.x = -ANIMATION.doorClosedInsetX;
+    this.freezerPivot.position.z = this._freezerBaseLocal.z + this._freezerClosedOffset();
     this.root.updateMatrixWorld(true);
   }
 
@@ -219,36 +231,62 @@ export class Refrigerator {
 
   toggleLeftDoor() {
     this.state.leftDoorOpen = !this.state.leftDoorOpen;
-    this.state.leftDoorTarget = this.state.leftDoorOpen ? -ANIMATION.doorOpenAngle : 0;
+    this.state.leftDoorTarget = this.state.leftDoorOpen
+      ? this._leftOpenAngle()
+      : this._leftClosedAngle();
   }
 
   toggleRightDoor() {
     this.state.rightDoorOpen = !this.state.rightDoorOpen;
-    this.state.rightDoorTarget = this.state.rightDoorOpen ? ANIMATION.doorOpenAngle : 0;
+    this.state.rightDoorTarget = this.state.rightDoorOpen
+      ? this._rightOpenAngle()
+      : this._rightClosedAngle();
   }
 
   toggleFreezer() {
     this.state.freezerOpen = !this.state.freezerOpen;
-    this.state.freezerTarget = this.state.freezerOpen ? this._freezerOpenOffset() : 0;
+    this.state.freezerTarget = this.state.freezerOpen
+      ? this._freezerOpenOffset()
+      : this._freezerClosedOffset();
   }
 
   openLeftDoor(open = true) {
     this.state.leftDoorOpen = open;
-    this.state.leftDoorTarget = open ? -ANIMATION.doorOpenAngle : 0;
+    this.state.leftDoorTarget = open ? this._leftOpenAngle() : this._leftClosedAngle();
   }
 
   openRightDoor(open = true) {
     this.state.rightDoorOpen = open;
-    this.state.rightDoorTarget = open ? ANIMATION.doorOpenAngle : 0;
+    this.state.rightDoorTarget = open ? this._rightOpenAngle() : this._rightClosedAngle();
   }
 
   openFreezer(open = true) {
     this.state.freezerOpen = open;
-    this.state.freezerTarget = open ? this._freezerOpenOffset() : 0;
+    this.state.freezerTarget = open ? this._freezerOpenOffset() : this._freezerClosedOffset();
+  }
+
+  _leftClosedAngle() {
+    return ANIMATION.doorClosedLeftAngle + ANIMATION.doorClosedAngleInset;
+  }
+
+  _leftOpenAngle() {
+    return ANIMATION.doorOpenLeftAngle;
+  }
+
+  _rightClosedAngle() {
+    return ANIMATION.doorClosedRightAngle - ANIMATION.doorClosedAngleInset;
+  }
+
+  _rightOpenAngle() {
+    return ANIMATION.doorOpenRightAngle;
+  }
+
+  _freezerClosedOffset() {
+    return -(ANIMATION.freezerSlideDistance + ANIMATION.freezerCloseInset);
   }
 
   _freezerOpenOffset() {
-    return ANIMATION.freezerSlideDistance * ANIMATION.freezerSlideSign;
+    return ANIMATION.freezerSlideDistance;
   }
 
   identifyInteraction(hit) {
@@ -301,13 +339,18 @@ export class Refrigerator {
     this.rightDoorPivot.rotation.set(0, this.state.rightDoorAngle, 0);
     this.freezerPivot.position.z = this._freezerBaseLocal.z + this.state.freezerOffset;
 
+    const leftInsetTarget = this.state.leftDoorOpen ? 0 : ANIMATION.doorClosedInsetX;
+    const rightInsetTarget = this.state.rightDoorOpen ? 0 : -ANIMATION.doorClosedInsetX;
+    this.leftDoorAssembly.position.x += (leftInsetTarget - this.leftDoorAssembly.position.x) * doorLerp;
+    this.rightDoorAssembly.position.x += (rightInsetTarget - this.rightDoorAssembly.position.x) * doorLerp;
+
     if (this.dispenserCooldown > 0) {
       this.dispenserCooldown -= delta;
     }
 
     this.parts.lights.forEach((mesh) => {
       if (mesh.material && mesh.userData.isLight) {
-        mesh.material.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.002) * 0.08;
+        mesh.material.emissiveIntensity = 1.25 + Math.sin(Date.now() * 0.002) * 0.15;
       }
     });
   }

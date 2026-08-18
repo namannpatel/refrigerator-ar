@@ -23,10 +23,11 @@ function supportsQuickLookLink() {
 }
 
 export class ARSessionManager {
-  constructor(sceneManager, refrigerator, interactionHandler) {
+  constructor(sceneManager, refrigerator, interactionHandler, modelLoader = null) {
     this.sceneManager = sceneManager;
     this.refrigerator = refrigerator;
     this.interactionHandler = interactionHandler;
+    this.modelLoader = modelLoader;
     this.renderer = sceneManager.renderer;
     this.scene = sceneManager.scene;
     this.camera = sceneManager.camera;
@@ -221,6 +222,7 @@ export class ARSessionManager {
   }
 
   async _onSessionStart() {
+    this.sceneManager.configureForAR(true);
     this.sceneManager.setStudioVisible(false);
     this.isPlaced = false;
     this.hitTestSourceRequested = false;
@@ -239,6 +241,10 @@ export class ARSessionManager {
 
     document.getElementById('ar-controls').classList.remove('hidden');
     this._updateHint('Point at a flat surface and tap to place the refrigerator.');
+
+    if (this.modelLoader) {
+      this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
+    }
   }
 
   _onSessionEnd() {
@@ -254,6 +260,7 @@ export class ARSessionManager {
     this.refrigerator.root.rotation.set(0, 0, 0);
 
     this.sceneManager.setStudioVisible(true);
+    this.sceneManager.configureForAR(false);
     document.getElementById('ar-controls').classList.add('hidden');
   }
 
@@ -283,19 +290,22 @@ export class ARSessionManager {
     const pose = frame.getPose(event.inputSource.targetRaySpace, referenceSpace);
     if (!pose) return false;
 
-    const origin = new THREE.Vector3(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
-    const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(
-      new THREE.Quaternion(
-        pose.transform.orientation.x,
-        pose.transform.orientation.y,
-        pose.transform.orientation.z,
-        pose.transform.orientation.w,
-      ),
+    const origin = new THREE.Vector3(
+      pose.transform.position.x,
+      pose.transform.position.y,
+      pose.transform.position.z,
     );
+    const quaternion = new THREE.Quaternion(
+      pose.transform.orientation.x,
+      pose.transform.orientation.y,
+      pose.transform.orientation.z,
+      pose.transform.orientation.w,
+    );
+    const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion).normalize();
 
     const raycaster = this.interactionHandler.raycaster;
     const meshes = this.refrigerator.getInteractiveMeshes();
-    raycaster.set(origin, direction.normalize());
+    raycaster.set(origin, direction);
     const hits = raycaster.intersectObjects(meshes, false);
     if (hits.length === 0) return false;
 
@@ -341,6 +351,10 @@ export class ARSessionManager {
     this._startRotationY = this.refrigerator.root.rotation.y;
     this.reticle.visible = false;
     this._updateHint('Drag to move or rotate. Tap surface to reposition.');
+
+    if (this.modelLoader) {
+      this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
+    }
   }
 
   _placeAtReticle() {

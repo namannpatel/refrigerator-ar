@@ -1,10 +1,14 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export class SceneManager {
   constructor(canvas) {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xe8ecf2);
+    this._studioBackground = new THREE.Color(0xe8ecf2);
+    this.scene.background = this._studioBackground.clone();
+    this._studioExposure = 1.05;
+    this._arExposure = 1.4;
 
     const aspect = canvas.clientWidth / canvas.clientHeight || 1;
     this.camera = new THREE.PerspectiveCamera(42, aspect, 0.01, 100);
@@ -31,15 +35,24 @@ export class SceneManager {
     this.scene.add(this.productRoot);
 
     this._setupLighting();
+    this._setupEnvironment();
     this._setupStudioFloor();
   }
 
-  _setupLighting() {
-    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
-    this.scene.add(ambient);
+  _setupEnvironment() {
+    this._pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    this._environmentScene = new RoomEnvironment();
+    this._studioEnvironment = this._pmremGenerator.fromScene(this._environmentScene).texture;
+    this.scene.environment = this._studioEnvironment;
+    this.scene.environmentIntensity = 1.0;
+  }
 
-    const hemi = new THREE.HemisphereLight(0xf0f4ff, 0x8a9099, 0.35);
-    this.scene.add(hemi);
+  _setupLighting() {
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+    this.scene.add(this.ambientLight);
+
+    this.hemiLight = new THREE.HemisphereLight(0xf0f4ff, 0x8a9099, 0.35);
+    this.scene.add(this.hemiLight);
 
     const key = new THREE.DirectionalLight(0xffffff, 1.1);
     key.position.set(4, 8, 6);
@@ -55,13 +68,13 @@ export class SceneManager {
     this.scene.add(key);
     this.keyLight = key;
 
-    const fill = new THREE.DirectionalLight(0xdde6ff, 0.45);
-    fill.position.set(-5, 3, -2);
-    this.scene.add(fill);
+    this.fillLight = new THREE.DirectionalLight(0xdde6ff, 0.45);
+    this.fillLight.position.set(-5, 3, -2);
+    this.scene.add(this.fillLight);
 
-    const rim = new THREE.DirectionalLight(0xffffff, 0.25);
-    rim.position.set(0, 4, -6);
-    this.scene.add(rim);
+    this.rimLight = new THREE.DirectionalLight(0xffffff, 0.25);
+    this.rimLight.position.set(0, 4, -6);
+    this.scene.add(this.rimLight);
   }
 
   _setupStudioFloor() {
@@ -81,6 +94,31 @@ export class SceneManager {
 
   setStudioVisible(visible) {
     this.studioGroup.visible = visible;
+  }
+
+  /** Boost lighting and environment so PBR textures read clearly in AR passthrough. */
+  configureForAR(enabled) {
+    if (enabled) {
+      this.scene.background = null;
+      this.ambientLight.intensity = 1.05;
+      this.hemiLight.intensity = 0.6;
+      this.keyLight.intensity = 1.5;
+      this.fillLight.intensity = 0.65;
+      this.rimLight.intensity = 0.45;
+      this.scene.environmentIntensity = 1.45;
+      this.renderer.toneMappingExposure = this._arExposure;
+      this.renderer.shadowMap.enabled = false;
+    } else {
+      this.scene.background = this._studioBackground.clone();
+      this.ambientLight.intensity = 0.55;
+      this.hemiLight.intensity = 0.35;
+      this.keyLight.intensity = 1.1;
+      this.fillLight.intensity = 0.45;
+      this.rimLight.intensity = 0.25;
+      this.scene.environmentIntensity = 1.0;
+      this.renderer.toneMappingExposure = this._studioExposure;
+      this.renderer.shadowMap.enabled = true;
+    }
   }
 
   resize() {

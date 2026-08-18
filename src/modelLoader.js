@@ -61,6 +61,7 @@ export class ModelLoader {
       normalScale: new THREE.Vector2(1, 1),
       metalness: 0.82,
       roughness: 0.38,
+      envMapIntensity: 1.0,
       emissive: new THREE.Color(0x000000),
       emissiveIntensity: 0,
       side: THREE.DoubleSide,
@@ -76,9 +77,10 @@ export class ModelLoader {
       normalScale: new THREE.Vector2(1, 1),
       emissiveMap: textures.emissive,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.55,
+      emissiveIntensity: 1.55,
       metalness: 0.2,
       roughness: 0.6,
+      envMapIntensity: 1.0,
       side: THREE.DoubleSide,
     });
   }
@@ -114,6 +116,30 @@ export class ModelLoader {
       mat.metalness = finishConfig.metalness;
       mat.roughness = finishConfig.roughness;
       mat.needsUpdate = true;
+    });
+  }
+
+  /** Re-upload texture maps for WebXR (mobile GPUs can drop bindings after session start). */
+  refreshMaterialsForXR(renderer, root) {
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    root.traverse((child) => {
+      if (!child.isMesh || !child.material) return;
+
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((mat) => {
+        ['map', 'normalMap', 'emissiveMap'].forEach((key) => {
+          const texture = mat[key];
+          if (!texture) return;
+          texture.anisotropy = maxAnisotropy;
+          texture.needsUpdate = true;
+          if (renderer.initTexture) {
+            renderer.initTexture(texture);
+          }
+        });
+        mat.envMapIntensity = 1.25;
+        mat.needsUpdate = true;
+      });
     });
   }
 
