@@ -122,7 +122,7 @@ export class UIManager {
     this.elements.btnArSecondary.disabled = false;
     const quickLookNote =
       mode === 'camera-ar'
-        ? ' Use the door buttons in AR, or tap directly on the model.'
+        ? ' Pinch to zoom and drag to rotate in AR.'
         : mode === 'quick-look'
           ? ' Door animations work in the 3D viewer above; Apple AR shows a static placement view.'
           : '';
