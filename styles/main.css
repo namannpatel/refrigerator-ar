@@ -497,6 +497,13 @@ body {
 
 body.camera-ar-active {
   overflow: hidden;
+  touch-action: none;
+}
+
+body.camera-ar-active #ar-mode-move,
+body.camera-ar-active #ar-mode-rotate,
+body.camera-ar-active #ar-remove {
+  display: none !important;
 }
 
 body.camera-ar-active .site-header,
@@ -531,6 +538,7 @@ body.camera-ar-active #three-canvas {
   margin: 0 !important;
   visibility: visible !important;
   z-index: 2;
+  touch-action: none;
 }
 
 body.camera-ar-active #viewer-overlay {

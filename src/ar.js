@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { AR_POSTER_PATH, USDZ_PATH } from './config.js';
 
 const RETICLE_RING = 0.35;
@@ -62,6 +63,8 @@ export class ARSessionManager {
     this._cameraARVideo = null;
     this._cameraARStream = null;
     this._savedCameraAR = null;
+    this._cameraARControls = null;
+    this._cameraARTargetY = 0;
     this.arMode = 'none';
 
     this.renderer.xr.addEventListener('sessionstart', () => this._onSessionStart());
@@ -143,7 +146,7 @@ export class ARSessionManager {
         mode: 'camera-ar',
         reason: 'camera-ar',
         message:
-          'Interactive AR in Safari: tap View in AR, then tap doors and the freezer on the model. (Apple’s separate AR viewer cannot run door animations.)',
+          'Tap View in AR for interactive Safari AR. Pinch to zoom and drag to rotate the model.',
       };
     }
 
@@ -218,7 +221,12 @@ export class ARSessionManager {
   }
 
   allowsScreenInteraction() {
-    return this.isActive && this.arMode === 'camera-ar';
+    return false;
+  }
+
+  updateCameraAR() {
+    if (this.arMode !== 'camera-ar' || !this._cameraARControls) return;
+    this._cameraARControls.update();
   }
 
   isWebXRSession() {
@@ -290,12 +298,7 @@ export class ARSessionManager {
 
     const height = this.refrigerator.worldHeight || 1.78;
     const midY = height * 0.45;
-    const viewDist = height * 0.95;
-    this.camera.position.set(0, midY, viewDist);
-    this.camera.lookAt(0, midY, 0);
-    this.camera.near = 0.05;
-    this.camera.far = 50;
-    this.camera.updateProjectionMatrix();
+    this._cameraARTargetY = midY;
 
     this.sceneManager.productRoot.add(this.refrigerator.root);
     this.refrigerator.root.position.set(0, 0, 0);
@@ -315,11 +318,56 @@ export class ARSessionManager {
       this.modelLoader.refreshMaterialsForXR(this.renderer, this.refrigerator.root);
     }
 
-    document.getElementById('ar-controls').classList.remove('hidden');
-    this._updateHint('Drag to move or rotate the refrigerator.');
     this._resizeCameraARViewport();
+    this._setupCameraARControls(height, midY);
+
+    document.getElementById('ar-controls').classList.remove('hidden');
+    this._updateHint('Pinch to zoom. Drag with one finger to rotate. Two fingers to pan.');
     this._onCameraARResize = () => this._resizeCameraARViewport();
     window.addEventListener('resize', this._onCameraARResize);
+  }
+
+  _setupCameraARControls(height, midY) {
+    if (this._cameraARControls) {
+      this._cameraARControls.dispose();
+    }
+
+    const controls = new OrbitControls(this.camera, this.canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+    controls.panSpeed = 0.8;
+    controls.rotateSpeed = 0.65;
+    controls.zoomSpeed = 0.9;
+    controls.target.set(0, midY, 0);
+    controls.minDistance = height * 0.35;
+    controls.maxDistance = height * 2.8;
+    controls.maxPolarAngle = Math.PI * 0.88;
+    controls.minPolarAngle = 0.15;
+
+    this.camera.near = height * 0.02;
+    this.camera.far = height * 25;
+
+    const dist = height * 1.15;
+    this.camera.position.set(dist * 0.75, midY + height * 0.08, dist);
+    controls.update();
+
+    this._cameraARControls = controls;
+  }
+
+  _resetCameraARView() {
+    if (!this._cameraARControls) return;
+
+    const height = this.refrigerator.worldHeight || 1.78;
+    const midY = height * 0.45;
+    this.refrigerator.root.position.set(0, 0, 0);
+    this.refrigerator.root.rotation.set(0, 0, 0);
+
+    this._cameraARControls.target.set(0, midY, 0);
+    const dist = height * 1.15;
+    this.camera.position.set(dist * 0.75, midY + height * 0.08, dist);
+    this._cameraARControls.update();
   }
 
   _resizeCameraARViewport() {
@@ -345,6 +393,11 @@ export class ARSessionManager {
     document.body.classList.remove('camera-ar-active');
     window.removeEventListener('resize', this._onCameraARResize);
     this._onCameraARResize = null;
+
+    if (this._cameraARControls) {
+      this._cameraARControls.dispose();
+      this._cameraARControls = null;
+    }
 
     if (this._savedCameraAR) {
       this.camera.position.copy(this._savedCameraAR.position);
@@ -585,9 +638,7 @@ export class ARSessionManager {
   resetPosition() {
     if (!this.isPlaced) return;
     if (this.arMode === 'camera-ar') {
-      this.refrigerator.root.position.set(0, 0, 0);
-      this.refrigerator.root.rotation.set(0, 0, 0);
-      this._startRotationY = 0;
+      this._resetCameraARView();
       return;
     }
     this.refrigerator.root.position.copy(this._placementPosition);
